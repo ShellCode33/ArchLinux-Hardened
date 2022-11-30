@@ -7,7 +7,9 @@ cd "$(dirname "$0")"
 
 HOSTNAME=laptop
 USERNAME=shellcode
+
 GRUB_RESOLUTION=1080p 
+GRUB_THEME_COMMIT=6094e5ee0e4bd7f204e1da3808aee70ba0d93256
 
 ask_yes_no() {
     case $1 in
@@ -84,6 +86,8 @@ install_archlinux() {
                          mkinitcpio \
                          lvm2 \
                          efibootmgr \
+                         efitools \
+                         sbsigntools \
                          grub \
                          networkmanager
     else
@@ -192,10 +196,10 @@ install_archlinux() {
 
     # Apply grub theme
     arch-chroot /mnt /bin/bash -c "cd /tmp && \
-                                   curl -O https://gitlab.com/VandalByte/darkmatter-grub-theme/-/archive/6094e5ee0e4bd7f204e1da3808aee70ba0d93256/darkmatter-grub-theme-6094e5ee0e4bd7f204e1da3808aee70ba0d93256.tar.gz && \
-                                   tar xf darkmatter-grub-theme-6094e5ee0e4bd7f204e1da3808aee70ba0d93256.tar.gz && \
+                                   curl -O https://gitlab.com/VandalByte/darkmatter-grub-theme/-/archive/$GRUB_THEME_COMMIT/darkmatter-grub-theme-$GRUB_THEME_COMMIT.tar.gz && \
+                                   tar xf darkmatter-grub-theme-$GRUB_THEME_COMMIT.tar.gz && \
                                    mkdir -p /boot/grub/themes/darkmatter && \
-                                   cd darkmatter-grub-theme-6094e5ee0e4bd7f204e1da3808aee70ba0d93256/ && \
+                                   cd darkmatter-grub-theme-$GRUB_THEME_COMMIT/ && \
                                    cp base/$GRUB_RESOLUTION/* /boot/grub/themes/darkmatter/ && \
                                    cp assets/backgrounds/arch-$GRUB_RESOLUTION.png /boot/grub/themes/darkmatter/background.png && \
                                    cp assets/fonts/$GRUB_RESOLUTION/* /boot/grub/themes/darkmatter/ && \
@@ -215,6 +219,58 @@ install_archlinux() {
                                                                  "boot/grub/grub.cfg=/boot/grub/grub.cfg" \
                                                                  "boot/grub/layouts/fr.gkb=/boot/grub/layouts/fr.gkb" \
                                                                  $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;)'
+
+        # shellcheck disable=SC2016
+        # Create secure boot keys and sign bootloader+kernel
+        arch-chroot /mnt /bin/bash -c 'cd /root/secrets && \
+                                       uuidgen --random > GUID.txt && \
+                                       openssl req -newkey rsa:4096 -nodes -keyout PK.key -new -x509 -sha256 -days 3650 -subj "/CN=EFI Platform Key/" -out PK.crt && \
+                                       openssl x509 -outform DER -in PK.crt -out PK.cer && \
+                                       cert-to-efi-sig-list -g "$(< GUID.txt)" PK.crt PK.esl && \
+                                       sign-efi-sig-list -g "$(< GUID.txt)" -k PK.key -c PK.crt PK PK.esl PK.auth && \
+                                       sign-efi-sig-list -g "$(< GUID.txt)" -c PK.crt -k PK.key PK /dev/null rm_PK.auth && \
+                                       openssl req -newkey rsa:4096 -nodes -keyout KEK.key -new -x509 -sha256 -days 3650 -subj "/CN=EFI Key Exchange Key/" -out KEK.crt && \
+                                       openssl x509 -outform DER -in KEK.crt -out KEK.cer && \
+                                       cert-to-efi-sig-list -g "$(< GUID.txt)" KEK.crt KEK.esl && \
+                                       sign-efi-sig-list -g "$(< GUID.txt)" -k PK.key -c PK.crt KEK KEK.esl KEK.auth && \
+                                       openssl req -newkey rsa:4096 -nodes -keyout db.key -new -x509 -sha256 -days 3650 -subj "/CN=EFI Signature Database key/" -out db.crt && \
+                                       openssl x509 -outform DER -in db.crt -out db.cer && \
+                                       cert-to-efi-sig-list -g "$(< GUID.txt)" db.crt db.esl && \
+                                       sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth && \
+                                       sbsign --key db.key --cert db.crt --output /boot/vmlinuz-linux /boot/vmlinuz-linux && \
+                                       sbsign --key db.key --cert db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi'
+
+        # TODO : check folder permissions
+        mkdir -p /mnt/etc/pacman.d/hooks
+
+        # Automatically sign the kernel on update
+        echo -e '[Trigger]\n' \
+                'Operation = Install\n' \
+                'Operation = Upgrade\n' \
+                'Type = Package\n' \
+                'Target = linux\n' \
+                '\n' \
+                '[Action]\n' \
+                'Description = Signing Kernel for SecureBoot\n' \
+                'When = PostTransaction\n' \
+                "Exec = /usr/bin/find /boot/ -maxdepth 1 -name 'vmlinuz-*' -exec /usr/bin/sh -c 'if ! /usr/bin/sbverify --list {} 2>/dev/null | /usr/bin/grep -q 'signature certificates'; then /usr/bin/sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output {} {}; fi' \ ;\n" \
+                'Depends = sbsigntools\n' \
+                'Depends = findutils\n' \
+                'Depends = grep' >> /mnt/etc/pacman.d/hooks/99-secureboot-linux.hook
+        
+        echo -e '[Trigger]\n' \
+                'Operation = Install\n' \
+                'Operation = Upgrade\n' \
+                'Type = Package\n' \
+                'Target = grub\n' \
+                '\n' \
+                '[Action]\n' \
+                'Description = Signing GRUB for SecureBoot\n' \
+                'When = PostTransaction\n' \
+                "Exec = /usr/bin/find /efi/ -name 'grubx64*' -exec /usr/bin/sh -c 'if ! /usr/bin/sbverify --list {} 2>/dev/null | /usr/bin/grep -q 'signature certificates'; then /usr/bin/sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output {} {}; fi' \ ;\n" \
+                'Depends = sbsigntools\n' \
+                'Depends = findutils\n' \
+                'Depends = grep' >> /mnt/etc/pacman.d/hooks/98-secureboot-grub.hook
     fi
 
     # Configure systemd services
@@ -225,6 +281,22 @@ install_archlinux() {
 
     # Hardenning
     arch-chroot /mnt /bin/bash -c "chmod 700 /boot"
+
+    if [ -d /sys/firmware/efi ]
+    then
+        arch-chroot /mnt /bin/bash -c 'cp /root/secrets/*.cer /root/secrets/*.esl /root/secrets/*.auth /efi/'
+        echo ""
+        echo "Now is time to enroll your secure boot keys into your UEFI firmware !"
+        echo ""
+        echo "But first make sure you securely backup:"
+        echo "  - Your previous UEFI keys (probably OEM ones)"
+        echo "  - Your /root/secrets folder (encrypted to an external drive)"
+        echo ""
+        echo "You can then reboot into the UEFI firmware settings by running the following settings :"
+        echo "  systemctl reboot --firmware"
+        echo ""
+        echo "You will find your UEFI keys on the EFI partition (${disk_to_use}1)"
+    fi
 }
 
 install_archlinux "$@"
