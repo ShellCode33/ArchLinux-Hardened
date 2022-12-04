@@ -46,14 +46,14 @@ install_archlinux() {
     parted "$disk_to_use" mklabel gpt --script
     parted "$disk_to_use" mkpart efi fat32 1MiB 65MiB --script
     parted "$disk_to_use" set 1 esp on --script
-    parted "$disk_to_use" mkpart primary ext4 65MiB 100% --script
+    parted "$disk_to_use" mkpart primary btrfs 65MiB 100% --script
     mkfs.fat -F 32 "${disk_to_use}1"
     cryptsetup luksFormat --batch-mode --type luks1 --use-random --key-slot 1 --key-size 512 --hash sha512 --pbkdf-force-iterations 200000 "${disk_to_use}2"
     cryptsetup open "${disk_to_use}2" encrypted_root
     pvcreate /dev/mapper/encrypted_root
     vgcreate vg /dev/mapper/encrypted_root
     lvcreate -l 100%FREE vg -n root
-    mkfs.ext4 /dev/vg/root
+    mkfs.btrfs -L root-btrfs /dev/vg/root
     echo "Done !"
 
     echo -n "Mounting installation... "
@@ -61,10 +61,13 @@ install_archlinux() {
     mount --mkdir "${disk_to_use}1" /mnt/efi
     echo "Done !"
 
-    pacstrap -K /mnt base base-devel \
-                     linux linux-firmware \
+    pacstrap -K /mnt base \
+                     base-devel \
+                     linux-hardened \
+                     linux-firmware \
                      intel-ucode \
                      mkinitcpio \
+                     btrfs-progs \
                      lvm2 \
                      efibootmgr \
                      efitools \
@@ -153,7 +156,7 @@ install_archlinux() {
                                    passwd $USERNAME"
 
     # Temporarly give sudo NOPASSWD rights to user
-    echo "shellcode ALL=(ALL) NOPASSWD:ALL" > "/mnt/etc/sudoers.d/$USERNAME"
+    echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > "/mnt/etc/sudoers.d/$USERNAME"
 
     # Install AUR helper
     arch-chroot /mnt /bin/su -l "$USERNAME" -c 'mkdir /tmp/yay.$$ && \
@@ -231,6 +234,7 @@ install_archlinux() {
 
     # Configure systemd services
     arch-chroot /mnt /bin/bash -c "systemctl enable NetworkManager"
+    arch-chroot /mnt /bin/bash -c "systemctl enable btrfs-scrub@-.timer"
 
     # Remove sudo NOPASSWD rights to user
     rm "/mnt/etc/sudoers.d/$USERNAME"
