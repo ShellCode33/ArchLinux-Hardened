@@ -75,7 +75,10 @@ install_archlinux() {
                      efibootmgr \
                      efitools \
                      sbsigntools \
-                     grub
+                     grub \
+                     dhcpcd \
+                     iwd
+
 
     echo -n "Generating /etc/fstab... "
     genfstab -U /mnt >> /mnt/etc/fstab
@@ -134,15 +137,26 @@ install_archlinux() {
                                    cert-to-efi-sig-list -g "$(< GUID.txt)" db.crt db.esl && \
                                    sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth'
 
+    # Remove fallback initramfs images (I think it's generated during mkinitcpio installation)
+    rm /mnt/boot/*fallback*
+
+    # Remove initramfs fallback image generation from initcpio
+    arch-chroot /mnt /bin/bash -c "sed -i \$'s/^PRESETS=.*/PRESETS=(\'default\')/g' /etc/mkinitcpio.d/linux-hardened.preset && \
+                                   sed -i 's/^fallback_image/#fallback_image/g' /etc/mkinitcpio.d/linux-hardened.preset && \
+                                   sed -i 's/^fallback_options/#fallback_options/g' /etc/mkinitcpio.d/linux-hardened.preset"
+
     # Add encryption hooks to initcpio
     arch-chroot /mnt /bin/bash -c "sed -i 's/^HOOKS.*block/\0 encrypt lvm2/g' /etc/mkinitcpio.conf && \
-                                   sed -i 's+^FILES=()+FILES=(/root/secrets/crypto_keyfile.bin)+g' /etc/mkinitcpio.conf && \
-                                   mkinitcpio -p linux-hardened"
+                                   sed -i 's+^FILES=()+FILES=(/root/secrets/crypto_keyfile.bin)+g' /etc/mkinitcpio.conf"
+
+    # Generate the initramfs
+    arch-chroot /mnt /bin/bash -c "mkinitcpio -p linux-hardened"
 
     # Configure and install grub
     arch-chroot /mnt /bin/bash -c "sed -i 's/^#GRUB_ENABLE_CRYPTODISK/GRUB_ENABLE_CRYPTODISK/g' /etc/default/grub && \
-                                   sed -i 's/GRUB_TERMINAL_INPUT=console/GRUB_TERMINAL_INPUT=at_keyboard/g' /etc/default/grub && \
-                                   sed -i 's+^GRUB_CMDLINE_LINUX=\"\"+GRUB_CMDLINE_LINUX=\"lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=UUID=$ROOT_UUID:encrypted_root root=/dev/vg/root cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
+                                   sed -i 's/GRUB_TERMINAL_INPUT=.*/GRUB_TERMINAL_INPUT=at_keyboard/g' /etc/default/grub && \
+                                   sed -i 's/^#GRUB_DISABLE_SUBMENU=.*/GRUB_DISABLE_SUBMENU=true/g' /etc/default/grub && \
+                                   sed -i 's+^GRUB_CMDLINE_LINUX=.*+GRUB_CMDLINE_LINUX=\"lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=UUID=$ROOT_UUID:encrypted_root root=/dev/vg/root cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
                                    grub-install --target=x86_64-efi --efi-directory=/efi"
 
     # Setup users and passwords
@@ -176,13 +190,26 @@ install_archlinux() {
                                    grub-kbdcomp -o /boot/grub/layouts/fr.gkb fr' # wrapper arround ckbcomp
 
     # shellcheck disable=SC2016
-    echo -e 'set check_signatures=enforce\n' \
+    # Make booting unrestricted (grub password not required)
+    sed -i 's/menuentry.*${CLASS}/\0 --unrestricted/g' /mnt/etc/grub.d/10_linux
+
+    # Add --class efi to the corresponding grub entry to display the proper icon
+    sed -i $'s/$LABEL\'/$LABEL\' --class efi/g' /mnt/etc/grub.d/30_uefi-firmware
+
+    # shellcheck disable=SC2016
+    echo -e 'menuentry "Reboot" --class restart --unrestricted { reboot }\n' \
+            'menuentry "Shut Down" --class shutdown --unrestricted { halt }\n' \
+            '\n' \
+            'set check_signatures=enforce\n' \
             'export check_signatures\n' \
-            'set superusers="root"\n' \
+            '\n' \
+            'set superusers="grub"\n' \
             'export superusers\n' \
-            "password_pbkdf2 root $grub_password_hash\n" \
+            "password_pbkdf2 grub $grub_password_hash\n" \
+            '\n' \
             'insmod keylayouts\n' \
-            'keymap /boot/grub/layouts/fr.gkb\n\n' \
+            'keymap /boot/grub/layouts/fr.gkb\n' \
+            '\n' \
             'insmod gfxterm_background\n' \
             'loadfont $prefix/themes/darkmatter/hackb_18.pf2\n' \
             'loadfont $prefix/themes/darkmatter/norwester_16.pf2\n' \
@@ -237,13 +264,15 @@ install_archlinux() {
 
     # Configure systemd services
     arch-chroot /mnt /bin/bash -c "systemctl enable btrfs-scrub@-.timer"
+    arch-chroot /mnt /bin/bash -c "systemctl enable dhcpcd"
+    arch-chroot /mnt /bin/bash -c "systemctl enable iwd"
 
     # Remove sudo NOPASSWD rights to user
     rm "/mnt/etc/sudoers.d/$USERNAME"
 
     # Hardenning
     arch-chroot /mnt /bin/bash -c "chmod 700 /boot"
-    sed -i 's/0022/0077/g /mnt/etc/fstab' # efi partition will be mounted with 700 permissions
+    sed -i 's/0022/0077/g' /mnt/etc/fstab # efi partition will be mounted with 700 permissions
 
     # Copy UEFI keys to /efi partition so that the UEFI firmware can load them
     arch-chroot /mnt /bin/bash -c 'cp /root/secrets/*.cer /root/secrets/*.esl /root/secrets/*.auth /efi/ && \
