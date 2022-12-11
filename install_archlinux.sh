@@ -61,6 +61,9 @@ install_archlinux() {
     mount --mkdir "${disk_to_use}1" /mnt/efi
     echo "Done !"
 
+    # keyring from ISO might be outdated, upgrading it just in case
+    pacman -Sy --noconfirm archlinux-keyring
+
     pacstrap -K /mnt base \
                      base-devel \
                      linux-hardened \
@@ -134,19 +137,21 @@ install_archlinux() {
     # Add encryption hooks to initcpio
     arch-chroot /mnt /bin/bash -c "sed -i 's/^HOOKS.*block/\0 encrypt lvm2/g' /etc/mkinitcpio.conf && \
                                    sed -i 's+^FILES=()+FILES=(/root/secrets/crypto_keyfile.bin)+g' /etc/mkinitcpio.conf && \
-                                   mkinitcpio -p linux"
+                                   mkinitcpio -p linux-hardened"
 
     # Configure and install grub
     arch-chroot /mnt /bin/bash -c "sed -i 's/^#GRUB_ENABLE_CRYPTODISK/GRUB_ENABLE_CRYPTODISK/g' /etc/default/grub && \
                                    sed -i 's/GRUB_TERMINAL_INPUT=console/GRUB_TERMINAL_INPUT=at_keyboard/g' /etc/default/grub && \
-                                   sed -i 's+^GRUB_CMDLINE_LINUX=\"\"+GRUB_CMDLINE_LINUX=\"cryptdevice=UUID=$ROOT_UUID:encrypted_root root=/dev/vg/root cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
+                                   sed -i 's+^GRUB_CMDLINE_LINUX=\"\"+GRUB_CMDLINE_LINUX=\"lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=UUID=$ROOT_UUID:encrypted_root root=/dev/vg/root cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
                                    grub-install --target=x86_64-efi --efi-directory=/efi"
 
     # Setup users and passwords
     echo -n "Enter GRUB password:"
     read -r -s password
+    echo
     echo -n "Reenter GRUB password:"
     read -r -s password_check
+    echo
     grub_password_hash="$(echo -e "$password\n$password_check" | grub-mkpasswd-pbkdf2 | grep PBKDF2 | awk '{ print $7 }')"
     echo "Set root password:"
     arch-chroot /mnt /bin/bash -c "passwd"
@@ -214,7 +219,6 @@ install_archlinux() {
                                                      $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;) && \
                                    sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi'
 
-    # TODO : check folder permissions
     mkdir -p /mnt/etc/pacman.d/hooks
 
     echo -e '[Trigger]\n' \
@@ -239,10 +243,11 @@ install_archlinux() {
 
     # Hardenning
     arch-chroot /mnt /bin/bash -c "chmod 700 /boot"
+    sed -i 's/0022/0077/g /mnt/etc/fstab' # efi partition will be mounted with 700 permissions
 
     # Copy UEFI keys to /efi partition so that the UEFI firmware can load them
     arch-chroot /mnt /bin/bash -c 'cp /root/secrets/*.cer /root/secrets/*.esl /root/secrets/*.auth /efi/ && \
-                                   shred -u /efi/rm_PK.auth'
+                                   shred -u /efi/rm_PK.auth' # rm_PK.auth can be used to remove enrolled UEFI keys
     echo ""
     echo "Now is time to enroll your secure boot keys into your UEFI firmware !"
     echo ""
