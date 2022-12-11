@@ -72,8 +72,7 @@ install_archlinux() {
                      efibootmgr \
                      efitools \
                      sbsigntools \
-                     grub \
-                     networkmanager
+                     grub
 
     echo -n "Generating /etc/fstab... "
     genfstab -U /mnt >> /mnt/etc/fstab
@@ -233,7 +232,6 @@ install_archlinux() {
             'Depends = grep' >> /mnt/etc/pacman.d/hooks/98-secureboot-grub.hook
 
     # Configure systemd services
-    arch-chroot /mnt /bin/bash -c "systemctl enable NetworkManager"
     arch-chroot /mnt /bin/bash -c "systemctl enable btrfs-scrub@-.timer"
 
     # Remove sudo NOPASSWD rights to user
