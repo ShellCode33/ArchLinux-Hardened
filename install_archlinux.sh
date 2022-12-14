@@ -256,7 +256,7 @@ install_archlinux() {
             '[Action]\n'\
             'Description = Create a btrfs snapshot before any modification in case something breaks\n'\
             'When = PreTransaction\n'\
-            $'Exec = /usr/bin/sh -c \'/usr/bin/btrfs subvolume snapshot -r / /.snapshots/"$(date +%H:%M:%S-%D)"\'\n'\
+            $'Exec = /usr/bin/sh -c \'/usr/bin/btrfs subvolume snapshot -r / /.snapshots/"$(date +%H-%M-%S--%d-%m-%y)"\'\n'\
             'Depends = btrfs-progs' >> /mnt/etc/pacman.d/hooks/97-btrfs-snapshot.hook
 
     echo -e '[Trigger]\n'\
