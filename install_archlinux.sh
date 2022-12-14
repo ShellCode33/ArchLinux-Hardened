@@ -249,6 +249,19 @@ install_archlinux() {
     echo -e '[Trigger]\n' \
             'Operation = Install\n' \
             'Operation = Upgrade\n' \
+            'Operation = Remove\n' \
+            'Type = Package\n' \
+            'Target = *\n' \
+            '\n' \
+            '[Action]\n' \
+            'Description = Create a btrfs snapshot before any modification in case something breaks\n' \
+            'When = PreTransaction\n' \
+            $'Exec = /usr/bin/sh -c \'/usr/bin/btrfs subvolume snapshot -r / /.snapshots/"$(date +%H:%M:%S-%D)"\'\n' \
+            'Depends = btrfs-progs' >> /mnt/etc/pacman.d/hooks/97-btrfs-snapshot.hook
+
+    echo -e '[Trigger]\n' \
+            'Operation = Install\n' \
+            'Operation = Upgrade\n' \
             'Type = Package\n' \
             'Target = grub\n' \
             '\n' \
