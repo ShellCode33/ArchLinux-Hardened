@@ -49,17 +49,24 @@ install_archlinux() {
     parted "$disk_to_use" mkpart primary btrfs 65MiB 100% --script
     mkfs.fat -F 32 "${disk_to_use}1"
     cryptsetup luksFormat --batch-mode --type luks1 --use-random --key-slot 1 --key-size 512 --hash sha512 --pbkdf-force-iterations 200000 "${disk_to_use}2"
-    cryptsetup open "${disk_to_use}2" encrypted_root
-    pvcreate /dev/mapper/encrypted_root
-    vgcreate vg /dev/mapper/encrypted_root
-    lvcreate -l 100%FREE vg -n root
-    mkfs.btrfs -L root-btrfs /dev/vg/root
+    cryptsetup open "${disk_to_use}2" archlinux
+    mkfs.btrfs --force --label archlinux /dev/mapper/archlinux
     echo "Done !"
 
-    echo -n "Mounting installation... "
-    mount --mkdir /dev/vg/root /mnt
+    mount -t btrfs /dev/mapper/archlinux /mnt
+
+    # Create btrfs subvolumes
+    btrfs subvolume create /mnt/@
+    btrfs subvolume create /mnt/@snapshots
+
+    # unmount root to remount using the btrfs subvolume
+    umount /mnt
+    mount_opt="defaults,ssd,noatime,nodiratime,space_cache=v2"
+    mount -o subvol=@,$mount_opt /dev/mapper/archlinux /mnt
+    mount --mkdir -o subvol=@snapshots,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
+
+    # Mount UEFI partition
     mount --mkdir "${disk_to_use}1" /mnt/efi
-    echo "Done !"
 
     # keyring from ISO might be outdated, upgrading it just in case
     pacman -Sy --noconfirm archlinux-keyring
@@ -71,7 +78,6 @@ install_archlinux() {
                      intel-ucode \
                      mkinitcpio \
                      btrfs-progs \
-                     lvm2 \
                      efibootmgr \
                      efitools \
                      sbsigntools \
@@ -103,14 +109,6 @@ install_archlinux() {
                                    echo "KEYMAP=fr-latin1" > /etc/vconsole.conf && \
                                    echo DONE!
                                    '
-
-    ROOT_UUID=$(lsblk "$disk_to_use" -f | grep crypto_LUKS | awk '{ print $4 }')
-
-    if [ -z "$ROOT_UUID" ]
-    then
-        echo "crypto_LUKS partition not found..."
-        exit 1
-    fi
 
     # Add crypto keyfile so that passphrase is asked only once (by grub and not by initramfs)
     mkdir /mnt/root/secrets
@@ -146,7 +144,7 @@ install_archlinux() {
                                    sed -i 's/^fallback_options/#fallback_options/g' /etc/mkinitcpio.d/linux-hardened.preset"
 
     # Add encryption hooks to initcpio
-    arch-chroot /mnt /bin/bash -c "sed -i 's/^HOOKS.*block/\0 encrypt lvm2/g' /etc/mkinitcpio.conf && \
+    arch-chroot /mnt /bin/bash -c "sed -i 's/^HOOKS.*block/\0 encrypt btrfs/g' /etc/mkinitcpio.conf && \
                                    sed -i 's+^FILES=()+FILES=(/root/secrets/crypto_keyfile.bin)+g' /etc/mkinitcpio.conf"
 
     # Generate the initramfs
@@ -156,7 +154,7 @@ install_archlinux() {
     arch-chroot /mnt /bin/bash -c "sed -i 's/^#GRUB_ENABLE_CRYPTODISK/GRUB_ENABLE_CRYPTODISK/g' /etc/default/grub && \
                                    sed -i 's/GRUB_TERMINAL_INPUT=.*/GRUB_TERMINAL_INPUT=at_keyboard/g' /etc/default/grub && \
                                    sed -i 's/^#GRUB_DISABLE_SUBMENU=.*/GRUB_DISABLE_SUBMENU=true/g' /etc/default/grub && \
-                                   sed -i 's+^GRUB_CMDLINE_LINUX=.*+GRUB_CMDLINE_LINUX=\"lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=UUID=$ROOT_UUID:encrypted_root root=/dev/vg/root cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
+                                   sed -i 's+^GRUB_CMDLINE_LINUX=.*+GRUB_CMDLINE_LINUX=\"lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=${disk_to_use}2:archlinux root=/dev/mapper/archlinux cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
                                    grub-install --target=x86_64-efi --efi-directory=/efi"
 
     # Setup users and passwords
@@ -238,7 +236,7 @@ install_archlinux() {
                                    grub-mkstandalone --directory /usr/lib/grub/x86_64-efi/ \
                                                      --format=x86_64-efi \
                                                      --compress="xz" \
-                                                     --modules="part_gpt crypto cryptodisk luks disk diskfilter lvm" \
+                                                     --modules="part_gpt crypto cryptodisk luks disk diskfilter btrfs" \
                                                      --fonts="unicode" \
                                                      --output="/efi/EFI/arch/grubx64.efi" \
                                                      "boot/grub/grub.cfg=/boot/grub/grub.cfg" \
@@ -257,7 +255,7 @@ install_archlinux() {
             '[Action]\n' \
             'Description = Signing GRUB for SecureBoot\n' \
             'When = PostTransaction\n' \
-            $'Exec = /usr/bin/sh -c \'cd / && grub-mkstandalone --directory /usr/lib/grub/x86_64-efi/ --format=x86_64-efi --compress="xz" --modules="part_gpt crypto cryptodisk luks disk diskfilter lvm" --fonts="unicode" --output="/efi/EFI/arch/grubx64.efi" "boot/grub/grub.cfg=/boot/grub/grub.cfg" "boot/grub/layouts/fr.gkb=/boot/grub/layouts/fr.gkb" $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;) && sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi\'\n' \
+            $'Exec = /usr/bin/sh -c \'cd / && grub-mkstandalone --directory /usr/lib/grub/x86_64-efi/ --format=x86_64-efi --compress="xz" --modules="part_gpt crypto cryptodisk luks disk diskfilter btrfs" --fonts="unicode" --output="/efi/EFI/arch/grubx64.efi" "boot/grub/grub.cfg=/boot/grub/grub.cfg" "boot/grub/layouts/fr.gkb=/boot/grub/layouts/fr.gkb" $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;) && sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi\'\n' \
             'Depends = sbsigntools\n' \
             'Depends = findutils\n' \
             'Depends = grep' >> /mnt/etc/pacman.d/hooks/98-secureboot-grub.hook
@@ -277,6 +275,11 @@ install_archlinux() {
     # Copy UEFI keys to /efi partition so that the UEFI firmware can load them
     arch-chroot /mnt /bin/bash -c 'cp /root/secrets/*.cer /root/secrets/*.esl /root/secrets/*.auth /efi/ && \
                                    shred -u /efi/rm_PK.auth' # rm_PK.auth can be used to remove enrolled UEFI keys
+
+    # TODO : use btrfs snapshots to rollback broken update
+    # TODO : use proper backup that does not rely on filesystem features !!
+    # NOTES : btrfs snapshots are not proper backups.
+
     echo ""
     echo "Now is time to enroll your secure boot keys into your UEFI firmware !"
     echo ""
