@@ -195,26 +195,26 @@ install_archlinux() {
     sed -i $'s/$LABEL\'/$LABEL\' --class efi/g' /mnt/etc/grub.d/30_uefi-firmware
 
     # shellcheck disable=SC2016
-    echo -e 'menuentry "Reboot" --class restart --unrestricted { reboot }\n' \
-            'menuentry "Shut Down" --class shutdown --unrestricted { halt }\n' \
-            '\n' \
-            'set check_signatures=enforce\n' \
-            'export check_signatures\n' \
-            '\n' \
-            'set superusers="grub"\n' \
-            'export superusers\n' \
-            "password_pbkdf2 grub $grub_password_hash\n" \
-            '\n' \
-            'insmod keylayouts\n' \
-            'keymap /boot/grub/layouts/fr.gkb\n' \
-            '\n' \
-            'insmod gfxterm_background\n' \
-            'loadfont $prefix/themes/darkmatter/hackb_18.pf2\n' \
-            'loadfont $prefix/themes/darkmatter/norwester_16.pf2\n' \
-            'loadfont $prefix/themes/darkmatter/norwester_20.pf2\n' \
-            'loadfont $prefix/themes/darkmatter/norwester_22.pf2\n' \
-            'insmod png\n' \
-            'set theme=$prefix/themes/darkmatter/theme.txt\n' \
+    echo -e 'menuentry "Reboot" --class restart --unrestricted { reboot }\n'\
+            'menuentry "Shut Down" --class shutdown --unrestricted { halt }\n'\
+            '\n'\
+            'set check_signatures=enforce\n'\
+            'export check_signatures\n'\
+            '\n'\
+            'set superusers="grub"\n'\
+            'export superusers\n'\
+            "password_pbkdf2 grub $grub_password_hash\n"\
+            '\n'\
+            'insmod keylayouts\n'\
+            'keymap /boot/grub/layouts/fr.gkb\n'\
+            '\n'\
+            'insmod gfxterm_background\n'\
+            'loadfont $prefix/themes/darkmatter/hackb_18.pf2\n'\
+            'loadfont $prefix/themes/darkmatter/norwester_16.pf2\n'\
+            'loadfont $prefix/themes/darkmatter/norwester_20.pf2\n'\
+            'loadfont $prefix/themes/darkmatter/norwester_22.pf2\n'\
+            'insmod png\n'\
+            'set theme=$prefix/themes/darkmatter/theme.txt\n'\
             'export theme' >> /mnt/etc/grub.d/40_custom
 
     # Generate grub configuration
@@ -246,31 +246,31 @@ install_archlinux() {
 
     mkdir -p /mnt/etc/pacman.d/hooks
 
-    echo -e '[Trigger]\n' \
-            'Operation = Install\n' \
-            'Operation = Upgrade\n' \
-            'Operation = Remove\n' \
-            'Type = Package\n' \
-            'Target = *\n' \
-            '\n' \
-            '[Action]\n' \
-            'Description = Create a btrfs snapshot before any modification in case something breaks\n' \
-            'When = PreTransaction\n' \
-            $'Exec = /usr/bin/sh -c \'/usr/bin/btrfs subvolume snapshot -r / /.snapshots/"$(date +%H:%M:%S-%D)"\'\n' \
+    echo -e '[Trigger]\n'\
+            'Operation = Install\n'\
+            'Operation = Upgrade\n'\
+            'Operation = Remove\n'\
+            'Type = Package\n'\
+            'Target = *\n'\
+            '\n'\
+            '[Action]\n'\
+            'Description = Create a btrfs snapshot before any modification in case something breaks\n'\
+            'When = PreTransaction\n'\
+            $'Exec = /usr/bin/sh -c \'/usr/bin/btrfs subvolume snapshot -r / /.snapshots/"$(date +%H:%M:%S-%D)"\'\n'\
             'Depends = btrfs-progs' >> /mnt/etc/pacman.d/hooks/97-btrfs-snapshot.hook
 
-    echo -e '[Trigger]\n' \
-            'Operation = Install\n' \
-            'Operation = Upgrade\n' \
-            'Type = Package\n' \
-            'Target = grub\n' \
-            '\n' \
-            '[Action]\n' \
-            'Description = Signing GRUB for SecureBoot\n' \
-            'When = PostTransaction\n' \
-            $'Exec = /usr/bin/sh -c \'cd / && grub-mkstandalone --directory /usr/lib/grub/x86_64-efi/ --format=x86_64-efi --compress="xz" --modules="part_gpt crypto cryptodisk luks disk diskfilter btrfs" --fonts="unicode" --output="/efi/EFI/arch/grubx64.efi" "boot/grub/grub.cfg=/boot/grub/grub.cfg" "boot/grub/layouts/fr.gkb=/boot/grub/layouts/fr.gkb" $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;) && sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi\'\n' \
-            'Depends = sbsigntools\n' \
-            'Depends = findutils\n' \
+    echo -e '[Trigger]\n'\
+            'Operation = Install\n'\
+            'Operation = Upgrade\n'\
+            'Type = Package\n'\
+            'Target = grub\n'\
+            '\n'\
+            '[Action]\n'\
+            'Description = Signing GRUB for SecureBoot\n'\
+            'When = PostTransaction\n'\
+            $'Exec = /usr/bin/sh -c \'cd / && grub-mkstandalone --directory /usr/lib/grub/x86_64-efi/ --format=x86_64-efi --compress="xz" --modules="part_gpt crypto cryptodisk luks disk diskfilter btrfs" --fonts="unicode" --output="/efi/EFI/arch/grubx64.efi" "boot/grub/grub.cfg=/boot/grub/grub.cfg" "boot/grub/layouts/fr.gkb=/boot/grub/layouts/fr.gkb" $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;) && sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi\'\n'\
+            'Depends = sbsigntools\n'\
+            'Depends = findutils\n'\
             'Depends = grep' >> /mnt/etc/pacman.d/hooks/98-secureboot-grub.hook
 
     # Configure systemd services
