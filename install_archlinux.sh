@@ -88,27 +88,19 @@ install_archlinux() {
 
     echo -n "Generating /etc/fstab... "
     genfstab -U /mnt >> /mnt/etc/fstab
-    sed -i 's/relatime/noatime/g' /mnt/etc/fstab
     echo "Done !"
 
-    # TODO : echo laptop > /etc/hostname ?
-    # TODO : set /etc/hosts accordingly ?
     # Basic configuration
     arch-chroot /mnt /bin/bash -c 'ln -sf /usr/share/zoneinfo/Europe/Paris /etc/localtime && \
                                    hwclock --systohc && \
                                    sed -i "s/^#en_US.UTF-8/en_US.UTF-8/g" /etc/locale.gen && \
                                    sed -i "s/^#fr_FR.UTF-8/fr_FR.UTF-8/g" /etc/locale.gen && \
-                                   locale-gen && \
-                                   echo LANG=\"en_US.UTF-8\" > /etc/locale.conf && \
-                                   echo LC_MESSAGES=\"en_US.UTF-8\" >> /etc/locale.conf && \
-                                   echo LC_MONETARY=\"fr_FR.UTF-8\" >> /etc/locale.conf && \
-                                   echo LC_PAPER=\"fr_FR.UTF-8\" >> /etc/locale.conf && \
-                                   echo LC_MEASUREMENT=\"fr_FR.UTF-8\" >> /etc/locale.conf && \
-                                   echo LC_ADDRESS=\"fr_FR.UTF-8\" >> /etc/locale.conf && \
-                                   echo LC_TIME=\"fr_FR.UTF-8\" >> /etc/locale.conf && \
-                                   echo "KEYMAP=fr-latin1" > /etc/vconsole.conf && \
-                                   echo DONE!
-                                   '
+                                   locale-gen'
+
+    # TODO : set /etc/hosts ?
+    cp archlinux/etc/hostname /mnt/etc/hostname
+    cp archlinux/etc/locale.conf /mnt/etc/locale.conf
+    cp archlinux/etc/vconsole.conf /mnt/etc/vconsole.conf
 
     # Add crypto keyfile so that passphrase is asked only once (by grub and not by initramfs)
     mkdir /mnt/root/secrets
@@ -194,28 +186,9 @@ install_archlinux() {
     # Add --class efi to the corresponding grub entry to display the proper icon
     sed -i $'s/$LABEL\'/$LABEL\' --class efi/g' /mnt/etc/grub.d/30_uefi-firmware
 
-    # shellcheck disable=SC2016
-    echo -e 'menuentry "Reboot" --class restart --unrestricted { reboot }\n'\
-            'menuentry "Shut Down" --class shutdown --unrestricted { halt }\n'\
-            '\n'\
-            'set check_signatures=enforce\n'\
-            'export check_signatures\n'\
-            '\n'\
-            'set superusers="grub"\n'\
-            'export superusers\n'\
-            "password_pbkdf2 grub $grub_password_hash\n"\
-            '\n'\
-            'insmod keylayouts\n'\
-            'keymap /boot/grub/layouts/fr.gkb\n'\
-            '\n'\
-            'insmod gfxterm_background\n'\
-            'loadfont $prefix/themes/darkmatter/hackb_18.pf2\n'\
-            'loadfont $prefix/themes/darkmatter/norwester_16.pf2\n'\
-            'loadfont $prefix/themes/darkmatter/norwester_20.pf2\n'\
-            'loadfont $prefix/themes/darkmatter/norwester_22.pf2\n'\
-            'insmod png\n'\
-            'set theme=$prefix/themes/darkmatter/theme.txt\n'\
-            'export theme' >> /mnt/etc/grub.d/40_custom
+    # Add custom grub settings
+    cp archlinux/etc/grub.d/40_custom /mnt/etc/grub.d/40_custom
+    sed -i "s/{{grub_password_hash}}/$grub_password_hash/g" /mnt/etc/grub.d/40_custom
 
     # Generate grub configuration
     arch-chroot /mnt /bin/bash -c "grub-mkconfig -o /boot/grub/grub.cfg"
@@ -246,32 +219,9 @@ install_archlinux() {
 
     mkdir -p /mnt/etc/pacman.d/hooks
 
-    echo -e '[Trigger]\n'\
-            'Operation = Install\n'\
-            'Operation = Upgrade\n'\
-            'Operation = Remove\n'\
-            'Type = Package\n'\
-            'Target = *\n'\
-            '\n'\
-            '[Action]\n'\
-            'Description = Create a btrfs snapshot before any modification in case something breaks\n'\
-            'When = PreTransaction\n'\
-            $'Exec = /usr/bin/sh -c \'/usr/bin/btrfs subvolume snapshot -r / /.snapshots/"$(date +%H-%M-%S--%d-%m-%y)"\'\n'\
-            'Depends = btrfs-progs' >> /mnt/etc/pacman.d/hooks/97-btrfs-snapshot.hook
-
-    echo -e '[Trigger]\n'\
-            'Operation = Install\n'\
-            'Operation = Upgrade\n'\
-            'Type = Package\n'\
-            'Target = grub\n'\
-            '\n'\
-            '[Action]\n'\
-            'Description = Signing GRUB for SecureBoot\n'\
-            'When = PostTransaction\n'\
-            $'Exec = /usr/bin/sh -c \'cd / && grub-mkstandalone --directory /usr/lib/grub/x86_64-efi/ --format=x86_64-efi --compress="xz" --modules="part_gpt crypto cryptodisk luks disk diskfilter btrfs" --fonts="unicode" --output="/efi/EFI/arch/grubx64.efi" "boot/grub/grub.cfg=/boot/grub/grub.cfg" "boot/grub/layouts/fr.gkb=/boot/grub/layouts/fr.gkb" $(find boot/grub/themes/darkmatter -type f -exec echo {}=/{} \;) && sbsign --key /root/secrets/db.key --cert /root/secrets/db.crt --output /efi/EFI/arch/grubx64.efi /efi/EFI/arch/grubx64.efi\'\n'\
-            'Depends = sbsigntools\n'\
-            'Depends = findutils\n'\
-            'Depends = grep' >> /mnt/etc/pacman.d/hooks/98-secureboot-grub.hook
+    # Copy pacman hooks over
+    cp archlinux/etc/pacman.d/hooks/97-btrfs-snapshot.hook /mnt/etc/pacman.d/hooks/97-btrfs-snapshot.hook
+    cp archlinux/etc/pacman.d/hooks/98-secureboot-grub.hook /mnt/etc/pacman.d/hooks/98-secureboot-grub.hook
 
     # Configure systemd services
     arch-chroot /mnt /bin/bash -c "systemctl enable btrfs-scrub@-.timer"
