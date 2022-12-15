@@ -57,13 +57,18 @@ install_archlinux() {
 
     # Create btrfs subvolumes
     btrfs subvolume create /mnt/@
+    btrfs subvolume create /mnt/@swap
     btrfs subvolume create /mnt/@snapshots
 
     # unmount root to remount using the btrfs subvolume
     umount /mnt
     mount_opt="defaults,ssd,noatime,nodiratime,space_cache=v2"
     mount -o subvol=@,$mount_opt /dev/mapper/archlinux /mnt
+    mount --mkdir -o subvol=@swap,$mount_opt /dev/mapper/archlinux /mnt/.swap
     mount --mkdir -o subvol=@snapshots,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
+
+    # Create swapfile
+    btrfs filesystem mkswapfile /mnt/.swap/swapfile
 
     # Mount UEFI partition
     mount --mkdir "${disk_to_use}1" /mnt/efi
@@ -85,6 +90,8 @@ install_archlinux() {
                      dhcpcd \
                      iwd
 
+    # Enable swap before running genfstab so that it can detect it properly
+    arch-chroot /mnt /bin/bash -c 'swapon /.swap/swapfile'
 
     echo -n "Generating /etc/fstab... "
     genfstab -U /mnt >> /mnt/etc/fstab
