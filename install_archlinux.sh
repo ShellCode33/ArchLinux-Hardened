@@ -90,6 +90,9 @@ install_archlinux() {
                      dhcpcd \
                      iwd
 
+    # Set low swappiness so that Linux doesn't abuse it
+    echo "vm.swappiness=10" > /mnt/etc/sysctl.d/99-swappiness.conf
+
     # Enable swap before running genfstab so that it can detect it properly
     arch-chroot /mnt /bin/bash -c 'swapon /.swap/swapfile'
 
