@@ -1,12 +1,14 @@
+#!/bin/sh
+exec tail -n +3 $0
+# This file provides an easy way to add custom menu entries.
+# Simply type the menu entries you want to add after this comment.
+# Be careful not to change the 'exec tail' line above.
+
 # Allow reboot from within grub
-menuentry "Reboot" --class restart --unrestricted {
-    reboot
-}
+menuentry "Reboot" --class restart --unrestricted { reboot }
 
 # Allow shutdown from within grub
-menuentry "Shut Down" --class shutdown --unrestricted {
-    halt
-}
+menuentry "Shut Down" --class shutdown --unrestricted { halt }
 
 # Enforce signature checking if --pubkey is set when generating the grub image
 set check_signatures=enforce
