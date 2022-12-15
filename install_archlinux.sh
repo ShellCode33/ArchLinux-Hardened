@@ -69,6 +69,8 @@ install_archlinux() {
 
     # Create swapfile
     btrfs filesystem mkswapfile /mnt/.swap/swapfile
+    mkswap /mnt/.swap/swapfile # according to btrfs doc it shouldn't be needed, but I don't only half of the swapfile is used
+    swapon /mnt/.swap/swapfile
 
     # Mount UEFI partition
     mount --mkdir "${disk_to_use}1" /mnt/efi
@@ -92,9 +94,6 @@ install_archlinux() {
 
     # Set low swappiness so that Linux doesn't abuse it
     echo "vm.swappiness=10" > /mnt/etc/sysctl.d/99-swappiness.conf
-
-    # Enable swap before running genfstab so that it can detect it properly
-    arch-chroot /mnt /bin/bash -c 'swapon /.swap/swapfile'
 
     echo -n "Generating /etc/fstab... "
     genfstab -U /mnt >> /mnt/etc/fstab
