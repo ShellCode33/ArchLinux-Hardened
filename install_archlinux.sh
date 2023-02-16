@@ -68,16 +68,16 @@ install_archlinux() {
     echo "Writing random bytes to $disk_to_use, go grab coffee this might take a while"
     dd if=/dev/random of="$disk_to_use" status=progress
 
-    echo -n "Creating partitions and filesystems... "
+    # Creating partitions and filesystems...
     parted "$disk_to_use" mklabel gpt --script
     parted "$disk_to_use" mkpart efi fat32 1MiB 65MiB --script
     parted "$disk_to_use" set 1 esp on --script
     parted "$disk_to_use" mkpart primary btrfs 65MiB 100% --script
     mkfs.fat -F 32 "${disk_to_use}1"
-    cryptsetup luksFormat --batch-mode --type luks1 --use-random --key-slot 1 --key-size 512 --hash sha512 --pbkdf-force-iterations 200000 "${disk_to_use}2"
-    cryptsetup open "${disk_to_use}2" archlinux
+
+    echo -n "$luks_password" | cryptsetup luksFormat --batch-mode --type luks1 --use-random --key-slot 1 --key-size 512 --hash sha512 --pbkdf-force-iterations 200000 "${disk_to_use}2" -
+    echo -n "$luks_password" | cryptsetup open "${disk_to_use}2" archlinux -
     mkfs.btrfs --force --label archlinux /dev/mapper/archlinux
-    echo "Done !"
 
     mount -t btrfs /dev/mapper/archlinux /mnt
 
@@ -144,7 +144,7 @@ install_archlinux() {
     chmod 700 /mnt/root/secrets
     head -c 64 /dev/urandom > /mnt/root/secrets/crypto_keyfile.bin
     chmod 600 /mnt/root/secrets/crypto_keyfile.bin
-    cryptsetup -v luksAddKey --pbkdf-force-iterations 1000 "${disk_to_use}2" /mnt/root/secrets/crypto_keyfile.bin
+    echo -n "$luks_password" | cryptsetup -v luksAddKey --pbkdf-force-iterations 1000 "${disk_to_use}2" /mnt/root/secrets/crypto_keyfile.bin -
 
     # shellcheck disable=SC2016
     # Create secure boot keys
@@ -186,7 +186,7 @@ install_archlinux() {
                                    sed -i 's+^GRUB_CMDLINE_LINUX=.*+GRUB_CMDLINE_LINUX=\"lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=${disk_to_use}2:archlinux root=/dev/mapper/archlinux cryptkey=rootfs:/root/secrets/crypto_keyfile.bin\"+g' /etc/default/grub && \
                                    grub-install --target=x86_64-efi --efi-directory=/efi"
 
-    # Setup users and passwords
+    # Setup passwords
     grub_password_hash="$(echo -e "$grub_password\n$grub_password" | grub-mkpasswd-pbkdf2 | grep PBKDF2 | awk '{ print $7 }')"
     arch-chroot /mnt /bin/bash -c "echo 'root:${root_password}' | chpasswd"
     arch-chroot /mnt /bin/bash -c "useradd --create-home --groups wheel $USERNAME && \
