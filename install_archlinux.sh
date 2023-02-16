@@ -109,7 +109,8 @@ install_archlinux() {
                                    locale-gen'
 
     # TODO : set /etc/hosts ?
-    cp archlinux/etc/hostname /mnt/etc/hostname
+    read -r -p "What hostname do you want to use ? " hostname
+    echo "$hostname" > /mnt/etc/hostname
     cp archlinux/etc/locale.conf /mnt/etc/locale.conf
     cp archlinux/etc/vconsole.conf /mnt/etc/vconsole.conf
 
