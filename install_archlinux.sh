@@ -57,6 +57,7 @@ install_archlinux() {
 
     # Create btrfs subvolumes
     btrfs subvolume create /mnt/@
+    btrfs subvolume create /mnt/@home
     btrfs subvolume create /mnt/@swap
     btrfs subvolume create /mnt/@snapshots
 
@@ -64,6 +65,7 @@ install_archlinux() {
     umount /mnt
     mount_opt="defaults,ssd,noatime,nodiratime,space_cache=v2"
     mount -o subvol=@,$mount_opt /dev/mapper/archlinux /mnt
+    mount --mkdir -o subvol=@home,$mount_opt /dev/mapper/archlinux /mnt/home
     mount --mkdir -o subvol=@swap,$mount_opt /dev/mapper/archlinux /mnt/.swap
     mount --mkdir -o subvol=@snapshots,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
 
