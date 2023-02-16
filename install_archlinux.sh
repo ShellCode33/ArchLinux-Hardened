@@ -5,9 +5,6 @@ cd "$(dirname "$0")"
 # Secure boot + encryption setup has been heavily inspired by:
 # https://gist.github.com/huntrar/e42aee630bee3295b2c671d098c81268
 
-HOSTNAME=laptop
-USERNAME=shellcode
-
 GRUB_RESOLUTION=1080p 
 GRUB_THEME_COMMIT=6094e5ee0e4bd7f204e1da3808aee70ba0d93256
 
@@ -16,6 +13,26 @@ ask_yes_no() {
         [Yy]* ) return 0 ;;
         * ) return 1 ;;
     esac
+}
+
+ask_password() {
+    read -r -p "Set $1 password: " -s password
+    >&2 echo
+    read -r -p "Confirm $1 password: " -s password_check
+    >&2 echo
+
+    until [ "$password" == "$password_check" ]
+    do
+        >&2 echo
+        >&2 echo "Passwords do not match!"
+        >&2 echo
+        read -r -p "Set $1 password: " -s password
+        >&2 echo
+        read -r -p "Confirm $1 password: " -s password_check
+        >&2 echo
+    done
+
+    echo "$password" # return value, yes bash sucks
 }
 
 install_archlinux() {
@@ -38,6 +55,15 @@ install_archlinux() {
     then
         exit 1
     fi
+
+    read -r -p "What username do you want to use ? " USERNAME
+    read -r -p "What hostname do you want to use ? " HOSTNAME
+
+    grub_password="$(ask_password GRUB)"
+    luks_password="$(ask_password LUKS)"
+    user_password="$(ask_password "$USERNAME")"
+    root_password="$(tr -dc '[:alnum:]' < /dev/urandom | fold -w "${1:-40}" | head -n 1)" # random root password, use sudo instead
+    echo
 
     echo "Writing random bytes to $disk_to_use, go grab coffee this might take a while"
     dd if=/dev/random of="$disk_to_use" status=progress
@@ -109,8 +135,7 @@ install_archlinux() {
                                    locale-gen'
 
     # TODO : set /etc/hosts ?
-    read -r -p "What hostname do you want to use ? " hostname
-    echo "$hostname" > /mnt/etc/hostname
+    echo "$HOSTNAME" > /mnt/etc/hostname
     cp archlinux/etc/locale.conf /mnt/etc/locale.conf
     cp archlinux/etc/vconsole.conf /mnt/etc/vconsole.conf
 
@@ -162,18 +187,10 @@ install_archlinux() {
                                    grub-install --target=x86_64-efi --efi-directory=/efi"
 
     # Setup users and passwords
-    echo -n "Enter GRUB password:"
-    read -r -s password
-    echo
-    echo -n "Reenter GRUB password:"
-    read -r -s password_check
-    echo
-    grub_password_hash="$(echo -e "$password\n$password_check" | grub-mkpasswd-pbkdf2 | grep PBKDF2 | awk '{ print $7 }')"
-    echo "Set root password:"
-    arch-chroot /mnt /bin/bash -c "passwd"
-    echo "Set $USERNAME password:"
+    grub_password_hash="$(echo -e "$grub_password\n$grub_password" | grub-mkpasswd-pbkdf2 | grep PBKDF2 | awk '{ print $7 }')"
+    arch-chroot /mnt /bin/bash -c "echo 'root:${root_password}' | chpasswd"
     arch-chroot /mnt /bin/bash -c "useradd --create-home --groups wheel $USERNAME && \
-                                   passwd $USERNAME"
+                                   echo '${USERNAME}:${user_password}' | chpasswd"
 
     # Temporarly give sudo NOPASSWD rights to user
     echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > "/mnt/etc/sudoers.d/$USERNAME"
