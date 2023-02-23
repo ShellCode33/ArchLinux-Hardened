@@ -280,7 +280,6 @@ EOF
 arch-chroot /mnt mkinitcpio -p linux-hardened
 
 # Setup libvirt
-arch-chroot /mnt virsh net-autostart default
 sed -i "s/username_placeholder/$user/g" /mnt/etc/libvirt/qemu.conf
 
 # Generate UEFI keys, sign kernels, enroll keys, etc.
