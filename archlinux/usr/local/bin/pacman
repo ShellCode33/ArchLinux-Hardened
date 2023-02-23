@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ "$#" -lt 2 ] || [[ "$1" != -S* ]] # if not trying to install a package
+if [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]] # if not trying to install a package
 then
     exec /usr/bin/pacman "$@"
     exit 1
@@ -15,7 +15,8 @@ read -p "Are you sure you want to install those packages ? [y/N] " -r answer
 
 if [ "$answer" != "${answer#[Yy]}" ]
 then
-    exec /usr/bin/pacman "$@"
+    echo
+    /usr/bin/pacman "$@" && echo -e "\n\e[31mDon't forget to update your Arch install script\e[0m"
 else
     echo
     echo "Good choice ;)"
