@@ -1,0 +1,82 @@
+# Basic system tools
+base
+base-devel
+
+# Kernel related
+linux-hardened
+linux-lts
+linux-firmware
+intel-ucode
+mkinitcpio
+
+# Hardware acceleration
+mesa
+vulkan-intel
+
+# Filesystem tools
+btrfs-progs
+gparted
+
+# Secure boot
+efibootmgr
+efitools
+sbsigntools
+edk2-shell # useful EFI shell in case things go wrong
+
+# Networking
+dhcpcd
+iwd
+iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
+firefox
+firefox-decentraleyes
+chromium
+ublock-origin # addon for both Firefox and Chromium
+
+# Security
+apparmor 
+polkit
+keepassxc
+
+# Virtualization/Containerization
+docker
+qemu-full
+virt-manager
+
+# Monitoring
+audit # Log system failures and important security events
+fwupd # Hardware firmware updates manager
+dunst # Notification daemon
+
+# Basic system tools
+sway
+swaylock
+swayidle
+swaybg
+foot # Terminal emulator
+wl-clipboard
+bemenu-wayland
+
+# Fonts
+libertinus-font
+ttf-joypixels # emoji
+terminus-font # TTY font
+
+# Dev
+neovim
+git
+rust
+clang
+python-pip
+man-db
+man-pages
+
+# File viewers
+zathura
+swayimg
+
+# Other
+zsh
+dash
+pipewire
+gimp
+openssh

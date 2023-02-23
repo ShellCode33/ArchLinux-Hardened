@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Type = Package
+Target = *
+
+[Action]
+Description = Deny installation of xorg packages
+When = PreTransaction
+AbortOnFail
+NeedsTargets
+Exec=/bin/bash -c "grep -q 'xorg\|x11' - && echo DO NOT INSTALL X11 TOOLS, FIND WAYLAND ALTERNATIVES && exit 1 || exit 0"
