@@ -105,7 +105,7 @@ clear
 [[ "$lets_go" == "No" ]] && exit 1
 
 # Start writing random bytes to the device in the background while we do other things
-dd if=/dev/random of="$device" status=progress &
+dd if=/dev/random of="$device" status=progress > /dev/null 2>&1 &
 dd_pid=$!
 
 hostname=$(get_input "Hostname" "Enter hostname") || exit 1
@@ -183,7 +183,6 @@ grep -o '^[^ *#]*' archlinux/packages | pacstrap -K /mnt -
 # Copy custom files to the new installation
 find archlinux -type f -exec bash -c 'file="$1"; dest="/mnt/${file#archlinux/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
 rm /mnt/packages
-sed -i "s/username/$user/g" /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
 
 # Set the very fast dash in place of sh
 ln -sfT dash /mnt/usr/bin/sh
@@ -225,17 +224,18 @@ arch-chroot /mnt locale-gen
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # Configure systemd services
+sed -i "s/username_placeholder/$user/g" /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
+arch-chroot /mnt systemctl enable getty@tty1
 arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
 arch-chroot /mnt systemctl enable dhcpcd
 arch-chroot /mnt systemctl enable iwd
 arch-chroot /mnt systemctl enable auditd
 arch-chroot /mnt systemctl enable nftables
-arch-chroot /mnt systemctl enable getty@tty1
 arch-chroot /mnt systemctl enable docker
 
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX as default, not zsh, that will come later
-for group in wheel audit; do
+for group in wheel audit libvirt; do
     arch-chroot /mnt groupadd -rf "$group"
     arch-chroot /mnt gpasswd -a "$user" "$group"
 done
@@ -278,6 +278,10 @@ EOF
 
 # This must be done after plymouth is installed from the AUR
 arch-chroot /mnt mkinitcpio -p linux-hardened
+
+# Setup libvirt
+arch-chroot /mnt virsh net-autostart default
+sed -i "s/username_placeholder/$user/g" /mnt/etc/libvirt/qemu.conf
 
 # Generate UEFI keys, sign kernels, enroll keys, etc.
 echo 'KERNEL=linux-hardened' > /mnt/etc/arch-secure-boot/config
