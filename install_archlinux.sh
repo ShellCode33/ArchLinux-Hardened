@@ -243,19 +243,19 @@ echo "$user:$password" | arch-chroot /mnt chpasswd
 arch-chroot /mnt su -l "$user" -c "touch ~/.hushlogin" # for a smoother transition between Plymouth and Sway
 
 # Temporarly give sudo NOPASSWD rights to user for yay
-echo "$user ALL=(ALL) NOPASSWD:ALL" > "/mnt/etc/sudoers.d/$user"
+echo "$user ALL=(ALL) NOPASSWD:ALL" >> "/mnt/etc/sudoers"
 
 # Install AUR helper
 arch-chroot /mnt /bin/su -l "$user" -c 'mkdir /tmp/yay.$$ && \
                                         cd /tmp/yay.$$ && \
                                         curl "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=yay-bin" -o PKGBUILD && \
-                                        makepkg -si --noconfirm'
+                                        yes | makepkg -si --noconfirm'
 
 # Install secure boot utils from AUR
-arch-chroot /mnt /bin/su -l "$user" -c 'yay --noconfirm -S arch-secure-boot'
+arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S arch-secure-boot'
 
 # Must be LD_PRELOADed on programs with a big attack surface (e.g. browsers)
-arch-chroot /mnt /bin/su -l "$user" -c 'yay --noconfirm -S hardened_malloc'
+arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S hardened_malloc'
 
 # WARNING: using plymouth is not ideal since its code run early at boot
 #          and can be the source of high privilege vulnerabilities.
@@ -263,11 +263,11 @@ arch-chroot /mnt /bin/su -l "$user" -c 'yay --noconfirm -S hardened_malloc'
 #          eye candy, so I made my choice :)
 #
 # You can choose your own theme from there: https://github.com/adi1090x/plymouth-themes
-arch-chroot /mnt /bin/su -l "$user" -c 'yay --noconfirm -S plymouth plymouth-theme-colorful-loop-git'
+arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S plymouth plymouth-theme-colorful-loop-git'
 arch-chroot /mnt plymouth-set-default-theme colorful_loop
 
 # Remove sudo NOPASSWD rights from user
-rm "/mnt/etc/sudoers.d/$user"
+sed -i '$ d' /mnt/etc/sudoers
 
 cat << EOF > /mnt/etc/mkinitcpio.conf
 MODULES=(i915)
