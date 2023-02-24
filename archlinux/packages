@@ -47,7 +47,7 @@ audit # Log system failures and important security events
 fwupd # Hardware firmware updates manager
 dunst # Notification daemon
 
-# Basic system tools
+# Desktop environment
 sway
 swaylock
 swayidle
@@ -55,6 +55,7 @@ swaybg
 foot # Terminal emulator
 wl-clipboard
 bemenu-wayland
+python-i3ipc # interact with Sway using Python
 
 # Fonts
 libertinus-font
@@ -73,6 +74,7 @@ man-pages
 # File viewers
 zathura
 swayimg
+mpv
 
 # Other
 zsh
@@ -80,3 +82,5 @@ dash
 pipewire
 gimp
 openssh
+most
+fzf
