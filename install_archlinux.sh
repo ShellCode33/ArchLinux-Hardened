@@ -162,7 +162,7 @@ mount --mkdir -o subvol=@swap,$mount_opt /dev/mapper/archlinux /mnt/.swap
 mount --mkdir -o subvol=@snapshots,umask=0077,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
 mount --mkdir -o subvol=@docker,$mount_opt /dev/mapper/archlinux /mnt/var/lib/docker
 
-# Not worth snapshoting, creating subvolumes for them so that they're not
+# Not worth snapshoting, creating subvolumes for them so that they're not included
 # Be careful not to break a potential future rollback of /@ !!
 mount --mkdir -o subvol=@cache-pacman-pkgs,$mount_opt /dev/mapper/archlinux /mnt/var/cache/pacman/pkg
 mount --mkdir -o subvol=@tmp-var,$mount_opt /dev/mapper/archlinux /mnt/var/tmp
@@ -172,22 +172,19 @@ btrfs filesystem mkswapfile /mnt/.swap/swapfile
 mkswap /mnt/.swap/swapfile # according to btrfs doc it shouldn't be needed, it's a bug
 swapon /mnt/.swap/swapfile # we use the swap so that genfstab detects it
 
-# Install all packages.
-# The idea with this packages file is to enforce the list of
-# packages allowed to be installed on the system in order to
-# keep the install minimal over time.
-# Use Docker to prevent bloat as much as possible.
-# You can still add new packages manually to that file to whitelist them.
+# Install all packages listed in archlinux/packages
 grep -o '^[^ *#]*' archlinux/packages | pacstrap -K /mnt -
 
 # Copy custom files to the new installation
 find archlinux -type f -exec bash -c 'file="$1"; dest="/mnt/${file#archlinux/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
 rm /mnt/packages
 
+# Patch placeholders from config files
+sed -i "s/username_placeholder/$user/g" /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
+sed -i "s/username_placeholder/$user/g" /mnt/etc/libvirt/qemu.conf
+
 # Set the very fast dash in place of sh
 ln -sfT dash /mnt/usr/bin/sh
-
-echo "lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=${part_root}:archlinux root=/dev/mapper/archlinux rootflags=subvol=@ mem_sleep_default=deep audit=1 quiet splash rd.udev.log_level=3" > /mnt/etc/kernel/cmdline
 
 {
     # Customize Linux Security Modules to include AppArmor
@@ -208,6 +205,9 @@ echo "lsm=landlock,lockdown,yama,integrity,apparmor,bpf cryptdevice=${part_root}
     # Ensure that all processes that run before the audit daemon starts are marked as auditable by the kernel
     echo -n " audit=1"
 
+    # Increase default log size
+    echo -n "audit_backlog_limit=8192"
+
     # Completely quiet the boot process to display some eye candy using plymouth instead :)
     echo -n " quiet splash rd.udev.log_level=3"
 } > /mnt/etc/kernel/cmdline
@@ -224,7 +224,6 @@ arch-chroot /mnt locale-gen
 genfstab -U /mnt >> /mnt/etc/fstab
 
 # Configure systemd services
-sed -i "s/username_placeholder/$user/g" /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
 arch-chroot /mnt systemctl enable getty@tty1
 arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
 arch-chroot /mnt systemctl enable dhcpcd
@@ -232,9 +231,10 @@ arch-chroot /mnt systemctl enable iwd
 arch-chroot /mnt systemctl enable auditd
 arch-chroot /mnt systemctl enable nftables
 arch-chroot /mnt systemctl enable docker
+arch-chroot /mnt systemctl enable libvirtd
 
 # Creating user
-arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX as default, not zsh, that will come later
+arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
 for group in wheel audit libvirt; do
     arch-chroot /mnt groupadd -rf "$group"
     arch-chroot /mnt gpasswd -a "$user" "$group"
@@ -266,8 +266,8 @@ arch-chroot /mnt /bin/su -l "$user" -c 'yay --noconfirm -S hardened_malloc'
 arch-chroot /mnt /bin/su -l "$user" -c 'yay --noconfirm -S plymouth plymouth-theme-colorful-loop-git'
 arch-chroot /mnt plymouth-set-default-theme colorful_loop
 
-# Remove sudo NOPASSWD rights to user but give wheel group sudo rights
-echo '%wheel      ALL=(ALL:ALL) ALL' > "/mnt/etc/sudoers.d/$user"
+# Remove sudo NOPASSWD rights from user
+rm "/mnt/etc/sudoers.d/$user"
 
 cat << EOF > /mnt/etc/mkinitcpio.conf
 MODULES=(i915)
@@ -278,9 +278,6 @@ EOF
 
 # This must be done after plymouth is installed from the AUR
 arch-chroot /mnt mkinitcpio -p linux-hardened
-
-# Setup libvirt
-sed -i "s/username_placeholder/$user/g" /mnt/etc/libvirt/qemu.conf
 
 # Generate UEFI keys, sign kernels, enroll keys, etc.
 echo 'KERNEL=linux-hardened' > /mnt/etc/arch-secure-boot/config
