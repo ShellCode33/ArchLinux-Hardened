@@ -4,4 +4,3 @@ Defaults insults
 Defaults pwfeedback
 
 %wheel ALL=(ALL:ALL) ALL
-%wheel ALL=NOPASSWD: /usr/bin/pacman -Syuw --noconfirm
