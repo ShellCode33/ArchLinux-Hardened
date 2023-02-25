@@ -1,6 +1,8 @@
 #!/bin/bash
 
-if [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]] # if not trying to install a package
+# If not trying to install packages, don't show warning and directely exec pacman
+# Exception made for COMING_FROM_YAY which is just here to prevent warning duplicate
+if [ "$COMING_FROM_YAY" = "1" ] || [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]]
 then
     exec /usr/bin/pacman "$@"
     exit 1

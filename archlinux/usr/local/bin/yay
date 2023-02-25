@@ -1,8 +1,9 @@
 #!/bin/bash
 
-if [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]] # if not trying to install a package
+# If not trying to install packages, don't show warning and directely exec yay
+if [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]]
 then
-    exec /usr/bin/yay "$@"
+    exec /usr/bin/yay --sudoflags="COMING_FROM_YAY=1" "$@"
     exit 1
 fi
 
@@ -16,7 +17,7 @@ read -p "Are you sure you want to install those packages ? [y/N] " -r answer
 if [ "$answer" != "${answer#[Yy]}" ]
 then
     echo
-    /usr/bin/yay "$@" && echo -e "\n\e[31mDon't forget to update your Arch install script\e[0m"
+    /usr/bin/yay --sudoflags="COMING_FROM_YAY=1" "$@" && echo -e "\n\e[31mDon't forget to update your Arch install script\e[0m"
 else
     echo
     echo "Good choice ;)"
