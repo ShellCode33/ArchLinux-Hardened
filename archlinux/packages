@@ -28,9 +28,7 @@ dhcpcd
 iwd
 iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
 firefox
-firefox-decentraleyes
 chromium
-ublock-origin # addon for both Firefox and Chromium
 
 # Security
 apparmor 
@@ -56,6 +54,11 @@ foot # Terminal emulator
 wl-clipboard
 bemenu-wayland
 python-i3ipc # interact with Sway using Python
+libnotify # notify-send
+
+# Basic services
+pipewire
+openssh
 
 # Fonts
 libertinus-font
@@ -70,6 +73,7 @@ clang
 python-pip
 man-db
 man-pages
+gdb
 
 # File viewers
 zathura
@@ -79,8 +83,9 @@ mpv
 # Other
 zsh
 dash
-pipewire
 gimp
-openssh
 most
 fzf
+htop
+p7zip
+unzip
