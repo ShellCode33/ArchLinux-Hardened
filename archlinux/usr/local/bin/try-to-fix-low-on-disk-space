@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# This script is run as a last resort by auditd in
+# order to try to fix a very low disk space available
+# See /etc/audit/auditd.conf
+
+space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
+notify-all-users --urgency critical "CRITICALLY LOW ON DISK SPACE" "Starting to take action...\nSpace left on device: $space_left"
+
+# Agressively cleaning pacman cache
+pacman -Scc
+
+# Clean cache from users' home
+rm -rf /home/*/.cache/yay
+rm -rf /home/*/.cache/firefox
+rm -rf /home/*/.cache/chromium
+rm -rf /home/*/.cache/pip
+
+# Balance btrfs
+btrfs balance start -dusage=0 /
+btrfs balance start -dusage=50 /
+
+# Inform the admin what space is left after the cleanup
+space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
+notify-all-users --urgency normal "CRITICALLY LOW ON DISK SPACE" "Necessary actions have been taken\nSpace left on device: $space_left"
+
+# Tell auditd to try to resume logging
+kill -SIGUSR2 $PPID

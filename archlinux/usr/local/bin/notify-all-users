@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# This script send a notification to all users having a DBUS interace.
+
+for bus_path in /run/user/*/bus
+do
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_path" /usr/bin/notify-send "$@"
+done
+

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# This script is run by auditd in order to warn the
+# admin that a disk failure has been detected.
+# See /etc/audit/auditd.conf
+
+notify-all-users --urgency critical "DISK FAILURE" "Detected by auditd, please investigate"

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+if [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]] # if not trying to install a package
+then
+    exec /usr/bin/yay "$@"
+    exit 1
+fi
+
+echo
+echo -e "\e[31mINSTALLING PACKAGES IS DISCOURAGED\e[0m"
+echo
+echo "Please consider using Docker containers instead to keep your system clean."
+
+read -p "Are you sure you want to install those packages ? [y/N] " -r answer
+
+if [ "$answer" != "${answer#[Yy]}" ]
+then
+    echo
+    /usr/bin/yay "$@" && echo -e "\n\e[31mDon't forget to update your Arch install script\e[0m"
+else
+    echo
+    echo "Good choice ;)"
+fi

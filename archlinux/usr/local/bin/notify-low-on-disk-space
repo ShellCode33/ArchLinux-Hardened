@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# This script is run by auditd in order to warn the
+# admin that the system is getting low on disk space
+# See /etc/audit/auditd.conf
+
+space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
+
+notify-all-users --urgency critical --icon dialog-warning "LOW ON DISK SPACE" "Space left on device: $space_left"
+
+# Tell auditd to try to resume logging
+kill -SIGUSR2 $PPID
