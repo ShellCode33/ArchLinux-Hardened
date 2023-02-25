@@ -1,0 +1,8 @@
+[Unit]
+Description=Cache upgradable packages in the background but do not install them
+Type=oneshot
+
+[Service]
+ExecStart=/usr/bin/pacman -Syuw --noconfirm
+Restart=on-failure
+RestartSec=10s

@@ -1,0 +1,9 @@
+[Unit]
+Description=Run pacman-notify.service every hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

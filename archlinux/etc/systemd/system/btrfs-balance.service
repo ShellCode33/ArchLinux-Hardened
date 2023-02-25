@@ -1,0 +1,6 @@
+[Unit]
+Description=Run btrfs balance to regain disk space
+Type=oneshot
+
+[Service]
+ExecStart=/bin/bash -c 'notify-all-users "SYSTEM MAINTENANCE" "Btrfs balancing in progress..."; btrfs balance start -dusage=50 -dlimit=2 -musage=50 -mlimit=4 /'
