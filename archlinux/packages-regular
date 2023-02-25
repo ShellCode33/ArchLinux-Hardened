@@ -28,10 +28,11 @@ dhcpcd
 iwd
 iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
 firefox
-chromium
 
 # Security
 apparmor 
+python-notify2 # for aa-notify
+python-psutil # for aa-notify
 polkit
 keepassxc
 
@@ -89,3 +90,4 @@ fzf
 htop
 p7zip
 unzip
+signal-desktop

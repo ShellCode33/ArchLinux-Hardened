@@ -173,11 +173,11 @@ mkswap /mnt/.swap/swapfile # according to btrfs doc it shouldn't be needed, it's
 swapon /mnt/.swap/swapfile # we use the swap so that genfstab detects it
 
 # Install all packages listed in archlinux/packages
-grep -o '^[^ *#]*' archlinux/packages | pacstrap -K /mnt -
+grep -o '^[^ *#]*' archlinux/packages-regular | pacstrap -K /mnt -
 
 # Copy custom files to the new installation
 find archlinux -type f -exec bash -c 'file="$1"; dest="/mnt/${file#archlinux/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
-rm /mnt/packages
+rm /mnt/packages-regular /mnt/packages-aur
 
 # Patch placeholders from config files
 sed -i "s/username_placeholder/$user/g" /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
@@ -248,17 +248,23 @@ arch-chroot /mnt su -l "$user" -c "touch ~/.hushlogin" # for a smoother transiti
 # Temporarly give sudo NOPASSWD rights to user for yay
 echo "$user ALL=(ALL) NOPASSWD:ALL" >> "/mnt/etc/sudoers"
 
+# Temporarly disable pacman wrapper so that no warning is issued
+mv /mnt/usr/local/bin/pacman /mnt/usr/local/bin/pacman.disable
+
 # Install AUR helper
 arch-chroot /mnt /bin/su -l "$user" -c 'mkdir /tmp/yay.$$ && \
                                         cd /tmp/yay.$$ && \
                                         curl "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=yay-bin" -o PKGBUILD && \
-                                        yes | makepkg -si --noconfirm'
+                                        makepkg -si --noconfirm'
 
-# Install secure boot utils from AUR
-arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S arch-secure-boot'
+# Install AUR packages
+grep -o '^[^ *#]*' archlinux/packages-aur | arch-chroot /mnt /bin/su -l "$user" -c '/usr/bin/yay --noconfirm -Sy -'
 
-# Must be LD_PRELOADed on programs with a big attack surface (e.g. browsers)
-arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S hardened_malloc'
+# Restore pacman wrapper
+mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
+
+# Remove sudo NOPASSWD rights from user
+sed -i '$ d' /mnt/etc/sudoers
 
 # WARNING: using plymouth is not ideal since its code run early at boot
 #          and can be the source of high privilege vulnerabilities.
@@ -266,11 +272,7 @@ arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S hardened_malloc
 #          eye candy, so I made my choice :)
 #
 # You can choose your own theme from there: https://github.com/adi1090x/plymouth-themes
-arch-chroot /mnt /bin/su -l "$user" -c 'yes | yay --noconfirm -S plymouth plymouth-theme-colorful-loop-git'
 arch-chroot /mnt plymouth-set-default-theme colorful_loop
-
-# Remove sudo NOPASSWD rights from user
-sed -i '$ d' /mnt/etc/sudoers
 
 cat << EOF > /mnt/etc/mkinitcpio.conf
 MODULES=(i915)

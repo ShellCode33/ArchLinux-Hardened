@@ -1,0 +1,12 @@
+# Secure boot utils
+arch-secure-boot
+
+# You can choose your own theme from there: https://github.com/adi1090x/plymouth-themes
+plymouth
+plymouth-theme-colorful-loop-git
+
+# Must be LD_PRELOADed on programs with a big attack surface (e.g. browsers)
+hardened_malloc
+
+# Chromium is great, but ungoogled-chromium is even better :)
+ungoogled-chromium-bin
