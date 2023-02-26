@@ -229,6 +229,7 @@ arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
 arch-chroot /mnt systemctl enable btrfs-balance.timer
 arch-chroot /mnt systemctl enable pacman-sync.timer
 arch-chroot /mnt systemctl enable pacman-notify.timer
+arch-chroot /mnt systemctl enable pacnew-notify.timer
 arch-chroot /mnt systemctl enable dhcpcd
 arch-chroot /mnt systemctl enable iwd
 arch-chroot /mnt systemctl enable auditd
