@@ -29,6 +29,7 @@ rm -rf /home/*/.cache/pip
 # Balance btrfs
 btrfs balance start -dusage=0 /
 btrfs balance start -dusage=50 /
+sync
 
 # Inform the admin what space is left after the cleanup
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
