@@ -4,6 +4,16 @@
 # order to try to fix a very low disk space available
 # See /etc/audit/auditd.conf
 
+LOCK_DIR=/tmp/.try-to-fix-low-on-disk-space.lock
+
+# Creating a directory is an atomic operation,
+# this is why we use it as a mutex to prevent
+# multiple instances of this script to run.
+if ! mkdir -- "$LOCK_DIR"
+then
+    exit 0
+fi
+
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
 notify-all-users --urgency critical "CRITICALLY LOW ON DISK SPACE" "Starting to take action...\nSpace left on device: $space_left"
 
@@ -26,3 +36,10 @@ notify-all-users --urgency normal "CRITICALLY LOW ON DISK SPACE" "Necessary acti
 
 # Tell auditd to try to resume logging
 kill -SIGUSR2 $PPID
+
+# We wait a bit for auditd to resume because
+# if it decides to rerun this script immediatly
+# we are still holding the lock causing the new
+# instance to exit.
+sleep 1s
+rmdir -- "$LOCK_DIR"
