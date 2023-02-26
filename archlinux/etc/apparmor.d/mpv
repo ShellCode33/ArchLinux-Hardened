@@ -1,0 +1,95 @@
+# AppArmor profile for mpv media player
+# Version of mpv profiled: 1:0.35.0
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019-2023 (C) krathalan, mortezadadgar; Licensed under GPLv3
+
+abi <abi/3.0>,
+include <tunables/global>
+
+profile mpv /usr/bin/mpv {
+  include <abstractions/base>
+  include <abstractions/fonts>
+  include <abstractions/common-gui>
+
+  # Hardware acceleration
+  include <abstractions/hwaccel>
+  /etc/libva.conf r,
+  /etc/igfx_* r,
+  @{sys}/devices/pci[0-9]*/**/{config,irq,revision,resource} r,
+  @{sys}/devices/pci[0-9]*/**/drm/{,**} r,
+  @{sys}/devices/system/cpu/possible r,
+
+  # Audio
+  include <abstractions/audio>
+  @{system_share_dirs}/pipewire/client.conf r,
+  /etc/pipewire/{,**} r,
+  /etc/alsa/conf.d/** r,
+  /etc/asound.conf r,
+  /usr/bin/pulseaudio rPx,
+
+  # Intel
+  /opt/intel/mediasdk/lib/libmfx.so.* mr,
+  /proc/sys/dev/i915/perf_stream_paranoid r,
+
+  # Needed to view media with an AppArmor-enforced streamlink
+  signal receive set=term peer=streamlink,
+
+  # Needed to stream media with youtube-dl
+  include <abstractions/networking>
+  signal send set=kill peer=yt-dlp,
+  network netlink raw,
+  network inet dgram,
+  network inet stream,
+  network inet6 dgram,
+  network inet6 stream,
+  /usr/bin/yt-dlp rUx,
+
+  # Needed to view media in home directory
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+
+  # Protect sensitive files and folders
+  deny owner @{HOME}/{@{XDG_CONFIG_DIR}/,.}bash_history rw,
+  deny owner @{HOME}/{@{XDG_CONFIG_DIR}/,.}zsh_history rw,
+  deny owner @{HOME}/{@{XDG_CONFIG_DIR}/,.}gnupg/{,**} rw,
+  deny owner @{HOME}/.mozilla/{,**} rw,
+  deny owner @{HOME}/.ssh{,**} rw,
+
+  # If you want to save screenshots, uncomment this. There are other
+  # screenshot tools like grim and scrot
+  deny @{HOME}/**/mpv-shot* w,
+
+  # Needed to view media on other drives
+  owner /run/media/*/ r,
+  owner /run/media/*/** r,
+
+  # Config
+  /etc/mpv/** r,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/mpv/{,**} rw,
+
+  # Other
+  /usr/bin/mpv r,
+
+  # Don't allow executable mapping of arbitrary files
+  deny /tmp/** mrw,
+  deny @{HOME}/.nv/.* mrw,
+
+  # Deny unneeded @{PROC} -- still need @{PROC}/devices for NVIDIA
+  deny @{PROC}/*/cmdline r,
+  deny @{PROC}/*/comm r,
+  deny @{PROC}/sys/vm/mmap_min_addr r,
+  deny @{PROC}/*/task/{,**} rw,
+
+  # Silence unneeded permissions
+  deny capability chown,
+  deny capability mknod,
+  deny capability syslog,
+  deny /etc/igfx_* w,
+  deny /dev/tty rw,
+  deny @{sys}/bus/pci/devices/ r,
+  deny @{sys}/devices/system/node/ r,
+  deny /usr/bin/{bash,dash} rx,
+  deny /usr/bin/xdg-screensaver rx,
+  deny @{system_share_dirs}/p11-kit/modules/ r,
+  deny /{,var/}run/systemd/userdb/ r,
+}

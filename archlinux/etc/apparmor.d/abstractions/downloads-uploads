@@ -1,0 +1,26 @@
+# Lightly edited fork of upstream <abstractions/user-downloads> that
+# only removes some permissions
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2020 (C) krathalan; Licensed under GPLv2
+
+# ------------------------------------------------------------------
+#
+#    Copyright (C) 2002-2006 Novell/SUSE
+#    Copyright (C) 2014 Canonical Ltd.
+#
+#    This program is free software; you can redistribute it and/or
+#    modify it under the terms of version 2 of the GNU General Public
+#    License published by the Free Software Foundation.
+#
+# ------------------------------------------------------------------
+
+  abi <abi/3.0>,
+
+# Description: Where common programs should allow users to download
+# files
+
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/	  w,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/*	  w,
+
+  owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/	  r,
+  owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/*  r,

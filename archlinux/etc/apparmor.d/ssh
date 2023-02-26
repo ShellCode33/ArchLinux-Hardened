@@ -1,0 +1,53 @@
+# AppArmor profile for openssh client (NOT SSHD!)
+# Version of ssh (openssh) profiled: 9.1
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019-2021 (C) krathalan; Licensed under GPLv3
+
+abi <abi/3.0>,
+include <tunables/global>
+
+profile ssh /usr/bin/ssh {
+  include <abstractions/base>
+  include <abstractions/perl>
+
+  # Local overrides
+  include if exists <local/ssh>
+
+  # Executables
+  /usr/bin/{bash,dash} mrix,
+  /usr/bin/env r,
+  /usr/bin/ssh r,
+
+  # Mosh
+  /usr/bin/mosh rPx,
+  signal send set=hup peer=mosh,
+
+  # Networking
+  include <abstractions/networking>
+  network netlink raw,
+  network inet dgram,
+  network inet stream,
+  network inet6 dgram,
+  network inet6 stream,
+  /etc/{passwd,protocols,services} r,
+  /etc/ssh/ssh_config r,
+
+  # SSH keys
+  owner @{HOME}/.ssh/ rw,
+  owner @{HOME}/.ssh/* r,
+  owner @{HOME}/.ssh/known_hosts* wl,
+
+  # Needed for ssh to prompt you for your key as well as to establish the
+  # authenticity of new hosts
+  /dev/tty rw,
+
+  # Needed to work for systemd-homed users
+  /etc/machine-id r,
+  /{,var/}run/systemd/userdb/ r,
+
+  # Needed to record authenticity of new hosts
+  owner @{HOME}/.ssh/known_hosts rw,
+
+  # Silence unnecessary permissions
+  deny @{PROC}/{,**} r,
+}

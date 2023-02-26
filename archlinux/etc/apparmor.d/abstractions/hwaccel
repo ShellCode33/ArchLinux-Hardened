@@ -1,0 +1,29 @@
+# Rules needed for hardware acceleration/decoding
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019 (C) krathalan; Licensed under GPLv3
+
+  # General
+  #include <abstractions/dri-common>
+  #include <abstractions/dri-enumerate>
+  #include <abstractions/mesa>
+  #include <abstractions/wayland>
+  /etc/vdpau_wrapper.cfg r,
+  @{system_share_dirs}/glvnd/** r,
+
+  # NVIDIA
+  #include <abstractions/nvidia>
+  /dev/nvidia-uvm rw,
+  @{PROC}/devices r,
+  /usr/bin/nvidia-modprobe mrPx,
+  @{system_share_dirs}/egl/egl_external_platform.d/ r,
+  @{system_share_dirs}/egl/egl_external_platform.d/** r,
+  @{system_share_dirs}/nvidia/** r,
+
+  deny /tmp/.gl* mrw,
+  deny /tmp/*/.gl* mrw,
+  deny @{HOME}/.nv/** mrw,
+  deny @{HOME}/.cache/.nv/** mrw,
+
+  # Other files in @{sys}/devices/pci[0-9]*/ that aren't part of 
+  # abstractions/dri-enumerate don't belong in this abstraction; allow on a
+  # per-profile basis. For example: @{sys}/devices/pci[0-9]*/**/config

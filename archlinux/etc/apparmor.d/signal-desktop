@@ -1,0 +1,124 @@
+# AppArmor profile for signal-desktop messenger
+# Version of signal-desktop profiled: 5.26.1
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2020-2021 (C) krathalan; Licensed under GPLv3
+
+abi <abi/3.0>,
+include <tunables/global>
+
+profile signal-desktop /usr/{bin/signal-desktop,lib/signal-desktop/signal-desktop} {
+  include <abstractions/audio>
+  include <abstractions/base>
+  include <abstractions/fonts>
+  include <abstractions/common-gui>
+  include <abstractions/nameservice>
+
+  # Needed to function at all
+  owner @{PROC}/*/fd/ r,
+  @{PROC}/ r,
+
+  # Networking
+  include <abstractions/networking>
+  network inet dgram,
+  network inet stream,
+  network inet6 dgram,
+  network netlink raw,
+
+  # Program files
+  /usr/lib/signal-desktop/{,**} r,
+  /usr/lib/signal-desktop/resources/app.asar.unpacked/node_modules/{,**} mr,
+
+  # Helper programs
+  /usr/bin/getconf rix,
+  /usr/{,s}bin/xdg-settings rCx,
+
+  profile xdg-settings /usr/{,s}bin/xdg-settings {
+    include <abstractions/base>
+
+    /usr/{,s}bin/xdg-settings r,
+
+    /usr/bin/{grep,basename,cut,which,readlink} rix,
+  }
+
+  # Chromium/Electron spawns and uses multiple processes
+  /usr/{bin/signal-desktop,lib/signal-desktop/signal-desktop} rPx,
+  owner /dev/shm/.org.chromium.Chromium.* rw,
+  owner /tmp/.org.chromium.Chromium.* mrw,
+  owner /tmp/.org.chromium.Chromium.*/{,**} rw,
+
+  # Sandboxing
+  /usr/lib/signal-desktop/chrome-sandbox mrCx,
+
+  profile chrome-sandbox /usr/lib/signal-desktop/chrome-sandbox {
+    #include <abstractions/base>
+
+    /usr/lib/signal-desktop/chrome-sandbox r,
+    /usr/lib/signal-desktop/signal-desktop rPx,
+
+    capability dac_override,
+    capability setuid,
+    capability setgid,
+    capability sys_admin,
+    capability sys_chroot,
+    capability sys_ptrace,
+    ptrace read peer=signal-desktop,
+
+    @{PROC}/*/ r,
+    @{PROC}/*/{oom_adj,oom_score_adj} w,
+  }
+
+  # Hardware acceleration
+  include <abstractions/hwaccel>
+  owner /dev/shm/shmfd-* rw,
+  @{PROC}/sys/dev/i915/perf_stream_paranoid r,
+  @{sys}/bus/pci/devices/ r,
+  @{sys}/bus/pci/devices/[0-9]*/resource r,
+  @{sys}/devices/pci[0-9]*/**/{class,config,irq,resource} r,
+
+  # Nvidia users
+  include if exists <local/signal-desktop>
+
+  # Config
+  owner @{HOME}/@{XDG_CONFIG_DIR}/Signal/{,**} rwk,
+
+  # Allow access for downloads and uploads
+  include <abstractions/downloads-uploads>
+
+  # File picker
+  @{system_share_dirs}/glib-[0-9]*/schemas/gschemas.compiled r,
+  deny owner @{HOME}/@{XDG_CONFIG_DIR}/dconf/user r,
+  deny owner /run/user/*/dconf/user rw,
+  deny @{user_share_dirs}/recently-used.xbel* rw,
+
+  # Deny unnecessary permissions
+
+  # Proc
+  deny @{PROC}/modules r,
+  deny @{PROC}/sys/fs/inotify/max_user_watches r,
+  deny @{PROC}/sys/kernel/random/boot_id r,
+  deny @{PROC}/sys/kernel/yama/ptrace_scope r,
+  deny @{PROC}/*/cgroup r,
+  deny @{PROC}/*/cmdline r,
+  deny @{PROC}/*/comm r,
+  deny @{PROC}/*/mountinfo r,
+  deny @{PROC}/*/mounts r,
+  deny @{PROC}/*/setgroups w,
+  deny @{PROC}/*/stat r,
+  deny @{PROC}/*/statm r,
+  deny @{PROC}/*/task/{,**} r,
+
+  # Misc
+  deny capability sys_ptrace,
+  deny /dev/pts/* rw,
+  deny /dev/tty* rw,
+  deny @{HOME}/@{XDG_CACHE_DIR}/{,**} rw,
+  deny @{HOME}/@{XDG_CONFIG_DIR}/Electron/{,**} rw,
+  deny @{HOME}/.pki/{,**} rw,
+  deny @{sys}/devices/system/cpu/{,**} r,
+  deny @{sys}/devices/virtual/tty/{,**} r,
+  deny /usr/bin/ r,
+  deny /usr/lib/ r,
+  deny /usr/bin/{dbus-send,ldd,uname,xprop} rx,
+  deny /usr/share/applications/ r,
+  deny /usr/share/gvfs/{,**} r,
+}

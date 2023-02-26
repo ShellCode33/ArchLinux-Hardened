@@ -1,0 +1,89 @@
+# AppArmor profile for pipewire media processor
+# Version of pipewire profiled: 1:0.3.33
+# Homepage: https://gitlab.com/krathalan/apparmor-profiles
+# Copyright 2019-2021-2021 (C) krathalan; Licensed under GPLv3
+
+#include <tunables/global>
+
+profile pipewire /usr/bin/pipewire {
+  #include <abstractions/audio>
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Config
+  /etc/pipewire/{,**} r,
+
+  # Local overrides
+  include if exists <local/pipewire>
+
+  # Misc
+  ptrace read peer=unconfined,
+  ptrace read peer=pipewire-media-session,
+  ptrace read peer=pipewire-pulse,
+  owner /run/user/*/pipewire*.lock rwk,
+  @{sys}/devices/virtual/dmi/id/* r,
+  @{system_share_dirs}/pipewire/{,**} r,
+
+  # Deny unnecessary permissions
+  deny / r,
+}
+
+profile pipewire-pulse /usr/bin/pipewire-pulse {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Config
+  /etc/pipewire/{,**} r,
+
+  # Local overrides
+  include if exists <local/pipewire>
+
+  # Misc
+  owner /run/user/*/pulse/{,**} rw,
+  @{sys}/devices/virtual/dmi/id/* r,
+  @{system_share_dirs}/pipewire/{,**} r,
+
+  # Necessary to control volume levels
+  capability sys_ptrace,
+  ptrace read peer=firefox,
+  ptrace read peer=mpv,
+  ptrace read peer=signal-desktop,
+  ptrace read peer=waybar,
+  ptrace read peer=unconfined,
+  ptrace read peer=ungoogled-chromium,
+
+  # Deny unnecessary permissions
+  deny / r,
+}
+
+profile pipewire-media-session /usr/bin/pipewire-media-session {
+  #include <abstractions/audio>
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Configs
+  /etc/pipewire/{,**} r,
+  @{system_share_dirs}/alsa-card-profile/{,**} r,
+  @{HOME}/@{XDG_CONFIG_DIR}/pipewire/{,**} rw,
+
+  # Misc
+  /run/systemd/users/* r,
+  @{system_share_dirs}/pipewire/{,**} r,
+
+  # Local overrides
+  include if exists <local/pipewire>
+
+  # Sound device(s)
+  /dev/ r,
+  /dev/bus/usb/ r,
+  /sys/bus/ r,
+  /sys/bus/usb/devices/ r,
+  /sys/class/ r,
+  /sys/class/sound/ r,
+  /sys/class/video4linux/ r,
+  /sys/devices/pci[0-9]*/**/sound/card*{,/*}/uevent r,
+  /sys/devices/pci[0-9]*/**/modalias r,
+  /sys/devices/virtual/sound/*/uevent r,
+  /run/udev/data/+sound:card* r,
+  /run/udev/data/c116* r,
+}

@@ -1,0 +1,45 @@
+# AppArmor profile for wl-copy/wl-paste wayland clipboard copy utility
+# Version of program profiled: 1:2.0.0
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019-2021 (C) krathalan; Licensed under GPLv3
+
+abi <abi/3.0>,
+include <tunables/global>
+
+profile wl-copy-paste /usr/bin/wl-{copy,paste} {
+  include <abstractions/base>
+  network unix stream,
+
+  /usr/bin/wl-{copy,paste} r,
+
+  # Needed to copy from pipe
+  /usr/bin/cat rix,
+  /usr/bin/rm rix,
+  owner /tmp/wl-copy-buffer-*/{,**} rw,
+
+  # Mutt
+  owner /tmp/mutt-* rw,
+
+  # Allow piping images into clipboard
+  /usr/bin/xdg-mime rCx,
+
+  profile xdg-mime /usr/bin/xdg-mime {
+    include <abstractions/base>
+
+    /usr/bin/xdg-mime r,
+    /usr/bin/{bash,dash} rix,
+
+    # Helper programs
+    /usr/bin/{readlink,grep,file} rix,
+
+    # Misc
+    /usr/share/file/misc/magic.mgc r,
+    owner /tmp/wl-copy-buffer-*/{,**} r,
+
+    # Deny unnecessary permissions
+    deny /usr/bin/{xprop,dbus-send,uname} rx,
+  }
+
+  # Deny unnecessary permissions
+  deny /dev/tty rw,
+}

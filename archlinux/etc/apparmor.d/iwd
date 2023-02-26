@@ -1,0 +1,30 @@
+# AppArmor profile for iwd NetworkManager backend
+# Version of iwd profiled: 2.1
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019-2023 (C) krathalan; Licensed under GPLv3
+
+abi <abi/3.0>,
+include <tunables/global>
+
+profile iwd /usr/lib/iwd/iwd {
+  include <abstractions/base>
+
+  capability net_admin,
+  capability net_raw,
+
+  # Networking
+  network netlink dgram,
+  network alg seqpacket,
+
+  # Config
+  owner /etc/iwd/{,**} r,
+
+  # Device access
+  owner /dev/rfkill rw,
+  owner @{sys}/devices/pci[0-9]*/**/net/* r,
+  owner @{sys}/devices/pci[0-9]*/**/phy[0-9]/** r,
+  owner @{sys}/devices/pci[0-9]*/**/modalias r,
+
+  # Connection information (e.g. wifi passwords)
+  owner /var/lib/iwd/{,**} rw,
+}

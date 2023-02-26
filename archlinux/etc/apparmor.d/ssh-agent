@@ -1,0 +1,15 @@
+# AppArmor profile for ssh-agent
+# Version of ssh-agent (openssh) profiled: 9.1
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019-2021 (C) krathalan; Licensed under GPLv3
+
+abi <abi/3.0>,
+include <tunables/global>
+
+profile ssh-agent /usr/bin/ssh-agent {
+  include <abstractions/base>
+  include <abstractions/openssl>
+  network unix stream,
+
+  owner /run/user/*/ssh-agent.socket w,
+}

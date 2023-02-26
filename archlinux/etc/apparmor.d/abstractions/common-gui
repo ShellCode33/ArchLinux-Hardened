@@ -1,0 +1,45 @@
+# Rules commonly needed by graphical (GTK) applications
+# Homepage: https://github.com/krathalan/apparmor-profiles
+# Copyright 2019 (C) krathalan; Licensed under GPLv3
+
+  # Icons, themes, fonts
+  @{system_share_dirs}/fonts/{,**} r,
+  @{system_share_dirs}/icons/{,**} r,
+  @{system_share_dirs}/themes/{,**} r,
+  owner @{HOME}/.icons/{,**} r,
+  owner @{HOME}/.fonts/{,**} r,
+  owner @{HOME}/.themes{,**} r,
+  owner @{user_share_dirs}/icons/{,**} r,
+  owner @{user_share_dirs}/fonts{,**} r,
+  owner @{user_share_dirs}/themes{,**} r,
+
+  # Unnecessary
+  deny @{system_share_dirs}/fonts/{,**} w,
+  deny /var/cache/fontconfig/{,**} w,
+  deny @{HOME}/.{,cache/}fontconfig/ rw,
+  deny @{HOME}/.{,cache/}fontconfig/** mrwl,
+
+  # Mime
+  /etc/mime.types r,
+  @{system_share_dirs}/mime/{,**} r,
+  owner @{HOME}/.config/mimeapps.list r,
+  owner @{user_share_dirs}/mime/{,**} r,
+  owner @{user_share_dirs}/applications/mimeinfo.cache r,
+
+  # GTK settings
+  @{system_share_dirs}/gtk-2.0/gtkrc r,
+  @{system_share_dirs}/gtk-3.0/settings.ini r,
+  owner @{HOME}/.gtkrc-2.0 r,
+  owner @{HOME}/.config/gtk-3.0/{bookmarks,settings.ini} r,
+
+  # Xorg
+  # Many applications don't need the entire X abstraction
+  # Many wayland applications still require /usr/share/X11
+  @{system_share_dirs}/X11/{,**} r,
+  owner @{HOME}/.{ICE,X}authority r,
+
+  # Commonly automatically touched by dconf
+  deny /etc/{fstab,group,machine-id,passwd} r,
+
+  # There's not really anything in this folder
+  deny @{system_share_dirs}/pixmaps/ rw,

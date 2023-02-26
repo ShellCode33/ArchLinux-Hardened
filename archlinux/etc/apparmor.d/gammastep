@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: 0BSD
+# Copyright (C) 2015-2020 Cameron Nemo <cnemo@tutanota.com>
+
+#include <tunables/global>
+
+profile gammastep /usr/bin/gammastep {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/dbus-strict>
+  #include <abstractions/wayland>
+
+  dbus send
+       bus=system
+       path=/org/freedesktop/GeoClue2/Client/[0-9]*,
+
+  dbus receive
+       bus=system
+       path=/org/freedesktop/GeoClue2/Manager,
+
+  # Allow but log any other dbus activity
+  audit dbus bus=system,
+
+  owner @{HOME}/@{XDG_CONFIG_DIR}/gammastep/config.ini r,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/gammastep/hooks/ r,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/gammastep/hooks/* Ux,
+  owner /{,var/}run/user/[0-9]*/gammastep-shared-* rw,
+
+  # Site-specific additions and overrides. See local/README for details.
+  #include if exists <local/gammastep>
+}
+
