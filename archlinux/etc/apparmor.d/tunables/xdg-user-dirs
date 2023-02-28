@@ -1,4 +1,5 @@
 @{XDG_DESKTOP_DIR}=""
+
 @{XDG_DOCUMENTS_DIR}="documents"
 @{XDG_DOWNLOAD_DIR}="downloads"
 @{XDG_PUBLICSHARE_DIR}="share"
@@ -9,3 +10,6 @@
 @{XDG_CONFIG_DIR}=".config"
 @{XDG_DATA_DIR}=".local/share"
 @{XDG_STATE_DIR}=".local/state"
+
+@{XDG_CONFIG_DIR}+=".dotfiles/.config"
+@{XDG_DATA_DIR}+=".dotfiles/.local/share"

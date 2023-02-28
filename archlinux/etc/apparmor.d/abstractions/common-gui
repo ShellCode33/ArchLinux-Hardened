@@ -16,13 +16,13 @@
   # Unnecessary
   deny @{system_share_dirs}/fonts/{,**} w,
   deny /var/cache/fontconfig/{,**} w,
-  deny @{HOME}/.{,cache/}fontconfig/ rw,
-  deny @{HOME}/.{,cache/}fontconfig/** mrwl,
+  deny @{HOME}/.{cache/,}/fontconfig/ rw,
+  deny @{HOME}/.{cache/,}fontconfig/** mrwl,
 
   # Mime
   /etc/mime.types r,
   @{system_share_dirs}/mime/{,**} r,
-  owner @{HOME}/.config/mimeapps.list r,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/mimeapps.list r,
   owner @{user_share_dirs}/mime/{,**} r,
   owner @{user_share_dirs}/applications/mimeinfo.cache r,
 
@@ -30,7 +30,7 @@
   @{system_share_dirs}/gtk-2.0/gtkrc r,
   @{system_share_dirs}/gtk-3.0/settings.ini r,
   owner @{HOME}/.gtkrc-2.0 r,
-  owner @{HOME}/.config/gtk-3.0/{bookmarks,settings.ini} r,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/gtk-3.0/{bookmarks,settings.ini} r,
 
   # Xorg
   # Many applications don't need the entire X abstraction

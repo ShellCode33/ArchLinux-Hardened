@@ -16,7 +16,6 @@ profile ungoogled-chromium /usr/{bin/chromium,lib/chromium/chromium} {
   /usr/bin/chromium r,
   /usr/lib/chromium/{,**} r,
   /usr/lib/chromium/chromium rPx,
-  /etc/chromium-flags.conf r,
   owner /dev/shm/.org.chromium.Chromium.* rw,
 
   /usr/lib/chromium/chrome-sandbox rCx,
@@ -38,6 +37,10 @@ profile ungoogled-chromium /usr/{bin/chromium,lib/chromium/chromium} {
     @{PROC}/@{pid}/ r,
     @{PROC}/@{pid}/{oom_adj,oom_score_adj} w,
   }
+
+  # Config file
+  @{HOME}/@{XDG_CONFIG_DIR}/user-dirs.dirs r,
+  @{HOME}/@{XDG_CONFIG_DIR}/chromium-flags.conf r,
 
   # Dconf
   owner /run/user/*/dconf/ w,
