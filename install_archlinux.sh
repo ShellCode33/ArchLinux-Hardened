@@ -236,6 +236,7 @@ arch-chroot /mnt systemctl enable auditd
 arch-chroot /mnt systemctl enable nftables
 arch-chroot /mnt systemctl enable docker
 arch-chroot /mnt systemctl enable libvirtd
+arch-chroot /mnt systemctl enable apparmor
 
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
@@ -244,7 +245,7 @@ for group in wheel audit libvirt; do
     arch-chroot /mnt gpasswd -a "$user" "$group"
 done
 echo "$user:$password" | arch-chroot /mnt chpasswd
-arch-chroot /mnt su -l "$user" -c "touch ~/.hushlogin" # for a smoother transition between Plymouth and Sway
+arch-chroot -u "$user" /mnt touch "/home/$user/.hushlogin" # for a smoother transition between Plymouth and Sway
 
 # Temporarly give sudo NOPASSWD rights to user for yay
 echo "$user ALL=(ALL) NOPASSWD:ALL" >> "/mnt/etc/sudoers"
@@ -253,13 +254,13 @@ echo "$user ALL=(ALL) NOPASSWD:ALL" >> "/mnt/etc/sudoers"
 mv /mnt/usr/local/bin/pacman /mnt/usr/local/bin/pacman.disable
 
 # Install AUR helper
-arch-chroot /mnt /bin/su -l "$user" -c 'mkdir /tmp/yay.$$ && \
-                                        cd /tmp/yay.$$ && \
-                                        curl "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=yay-bin" -o PKGBUILD && \
-                                        makepkg -si --noconfirm'
+arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
+                                          cd /tmp/yay.$$ && \
+                                          curl "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=yay-bin" -o PKGBUILD && \
+                                          makepkg -si --noconfirm'
 
 # Install AUR packages
-grep -o '^[^ *#]*' archlinux/packages-aur | arch-chroot /mnt /bin/su -l "$user" -c '/usr/bin/yay --noconfirm -Sy -'
+grep -o '^[^ *#]*' archlinux/packages-aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
 
 # Restore pacman wrapper
 mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
@@ -294,5 +295,5 @@ arch-chroot /mnt chmod 700 /boot
 arch-chroot /mnt passwd -dl root
 
 # Run userspace configuration
-arch-chroot /mnt /bin/su -l "$user" -c 'git clone https://github.com/ShellCode33/.dotfiles && \
-                                        .dotfiles/install.sh'
+arch-chroot -u "$user" /mnt /bin/bash -c 'git clone https://github.com/ShellCode33/.dotfiles && \
+                                          .dotfiles/install.sh'
