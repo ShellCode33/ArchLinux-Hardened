@@ -1,6 +1,6 @@
 [Unit]
 Description=Send desktop notification if a system upgrade is available
-Type=oneshot
 
 [Service]
+Type=oneshot
 ExecStart=/bin/bash -c '/usr/bin/pacman -Qu && notify-all-users --urgency normal "SYSTEM UPGRADE IS AVAILABLE" "Please consider upgrading it."'
