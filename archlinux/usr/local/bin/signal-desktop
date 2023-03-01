@@ -1,0 +1,6 @@
+#!/bin/sh
+# As I'm writing this, signal-desktop doesn't automatically source ~/.config/electron-flags.conf
+# But we need it in order to pass Wayland-related flags.
+# This wrapper script might probably be removable at some point when ArchLinux fixes this.
+# See: https://wiki.archlinux.org/title/wayland#Electron
+exec xargs /usr/bin/signal-desktop < "$XDG_CONFIG_HOME/electron-flags.conf"
