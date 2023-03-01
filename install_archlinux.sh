@@ -245,7 +245,7 @@ for group in wheel audit libvirt; do
     arch-chroot /mnt gpasswd -a "$user" "$group"
 done
 echo "$user:$password" | arch-chroot /mnt chpasswd
-arch-chroot -u "$user" /mnt touch "/home/$user/.hushlogin" # for a smoother transition between Plymouth and Sway
+arch-chroot /mnt echo "$user" > "/etc/hushlogins" # for a smoother transition between Plymouth and Sway
 
 # Temporarly give sudo NOPASSWD rights to user for yay
 echo "$user ALL=(ALL) NOPASSWD:ALL" >> "/mnt/etc/sudoers"
