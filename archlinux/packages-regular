@@ -56,14 +56,16 @@ wl-clipboard
 bemenu-wayland
 python-i3ipc # interact with Sway using Python
 libnotify # notify-send
+qt5-wayland
+qt6-wayland
 
 # Basic services
 pipewire
 openssh
 
 # Fonts
-libertinus-font
-ttf-joypixels # emoji
+otf-fantasque-sans-mono
+noto-fonts-emoji
 terminus-font # TTY font
 
 # Dev
@@ -74,7 +76,10 @@ clang
 python-pip
 man-db
 man-pages
+
+# Debugging
 gdb
+strace
 
 # File viewers
 zathura
