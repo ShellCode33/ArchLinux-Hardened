@@ -3,4 +3,4 @@ Description=Send desktop notification if configuration files that require review
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'notify-all-users --urgency critical --icon dialog-warning "FOUND PACNEW FILES" "Please take action:\n$(find /etc -type f -name "*.pacnew")"'
+ExecStart=/bin/bash -c 'files="$(find /etc -type f -name "*.pacnew")"; [[ -z "$files" ]] || notify-all-users --urgency critical --icon dialog-warning "FOUND PACNEW FILES" "Please take action:\n$files"'
