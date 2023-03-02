@@ -2,7 +2,7 @@
 
 @{XDG_DOCUMENTS_DIR}="documents"
 @{XDG_DOWNLOAD_DIR}="downloads"
-@{XDG_PUBLICSHARE_DIR}="share"
+@{XDG_PUBLICSHARE_DIR}="public"
 @{XDG_MUSIC_DIR}="media/music"
 @{XDG_PICTURES_DIR}="media/pictures"
 @{XDG_VIDEOS_DIR}="media/videos"
