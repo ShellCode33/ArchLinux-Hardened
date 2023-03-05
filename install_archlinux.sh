@@ -176,6 +176,7 @@ swapon /mnt/.swap/swapfile # we use the swap so that genfstab detects it
 grep -o '^[^ *#]*' archlinux/packages-regular | pacstrap -K /mnt -
 
 # Copy custom files to the new installation
+cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/
 find archlinux -type f -exec bash -c 'file="$1"; dest="/mnt/${file#archlinux/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
 rm /mnt/packages-regular /mnt/packages-aur
 
