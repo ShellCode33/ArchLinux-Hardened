@@ -40,7 +40,8 @@ def follow_auditd_events() -> Iterable:
     logdata = open(LOG_FILE, "r")
 
     # Skip events that occured before boot
-    for line in logdata:
+    line = logdata.readline()
+    while line:
         match = re.search(r'audit\((\d+)\.\d+:\d+\)', line)
         
         if not match:
@@ -54,6 +55,8 @@ def follow_auditd_events() -> Iterable:
             # So we seek back before that line
             logdata.seek(logdata.tell() - len(line))
             break
+
+        line = logdata.readline()
 
     while True:
         logdata, log_inode, log_size = reopen_logfile_if_needed(logdata, log_inode, log_size)
