@@ -8,6 +8,17 @@ then
     exit 1
 fi
 
+if /usr/bin/pacman -Qu &> /dev/null
+then
+    echo
+    echo -e "\e[31mUPGRADE YOUR SYSTEM FIRST\e[0m"
+    echo
+    echo "Refusing to run because a system upgrade is available."
+    echo "Installing a new package could lead to partial upgrade and break your system."
+    echo "Run 'pacman -Syu' first."
+    exit 1
+fi
+
 echo
 echo -e "\e[31mINSTALLING PACKAGES IS DISCOURAGED\e[0m"
 echo
