@@ -53,6 +53,7 @@ foot # Terminal emulator
 wl-clipboard
 bemenu-wayland
 python-i3ipc # interact with Sway using Python
+python-psutil # status-bar requirement
 libnotify # notify-send
 qt5-wayland
 qt6-wayland
@@ -88,6 +89,7 @@ mpv
 # Other
 zsh
 dash
+wget
 gimp
 most
 fzf
