@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the secure boot status and send a desktop notification if it's disabled
+Requires=graphical.target
+After=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'sb_status="$(sbctl status | grep \'Secure Boot\' | awk \'{ print $NF }\')"; [ "$sb_status" != "Enabled" ] && notify-all-users --urgency critical "SECURE BOOT DISABLED" "Please take action"'
+
+[Install]
+WantedBy=graphical.target
