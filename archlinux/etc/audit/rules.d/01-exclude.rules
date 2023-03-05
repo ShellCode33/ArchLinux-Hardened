@@ -1,0 +1,5 @@
+-a exclude,always -F msgtype=BPF
+-a exclude,always -F msgtype=SERVICE_STOP
+-a exclude,always -F msgtype=SOCKADDR
+-a exclude,always -F msgtype=USER_START
+-a exclude,always -F msgtype=USER_END
