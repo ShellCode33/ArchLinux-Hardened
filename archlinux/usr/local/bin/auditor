@@ -71,7 +71,7 @@ def check_docker() -> List[str]:
     with open("/etc/group") as file:
         for line in file:
             if line.startswith("docker"):
-                docker_line = line
+                docker_line = line.strip()
                 break
 
     if docker_line:
