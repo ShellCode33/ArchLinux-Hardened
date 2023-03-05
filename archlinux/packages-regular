@@ -71,6 +71,7 @@ neovim
 git
 rust
 clang
+ipython
 python-pip
 man-db
 man-pages
