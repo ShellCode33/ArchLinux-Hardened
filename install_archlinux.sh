@@ -298,5 +298,6 @@ arch-chroot /mnt chmod 700 /boot
 arch-chroot /mnt passwd -dl root
 
 # Run userspace configuration
-arch-chroot -u "$user" /mnt /bin/bash -c 'git clone https://github.com/ShellCode33/.dotfiles && \
-                                          .dotfiles/install.sh'
+HOME="/home/$user" arch-chroot -u "$user" /mnt /bin/bash -c 'cd && \
+                                                             git clone https://github.com/ShellCode33/.dotfiles && \
+                                                             .dotfiles/install.sh'
