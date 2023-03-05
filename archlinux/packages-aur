@@ -5,8 +5,5 @@ arch-secure-boot
 plymouth
 plymouth-theme-colorful-loop-git
 
-# Must be LD_PRELOADed on programs with a big attack surface (e.g. browsers)
-hardened_malloc
-
 # Chromium is great, but ungoogled-chromium is even better :)
 ungoogled-chromium-bin
