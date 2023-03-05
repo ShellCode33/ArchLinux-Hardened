@@ -236,7 +236,10 @@ arch-chroot /mnt systemctl enable auditd
 arch-chroot /mnt systemctl enable nftables
 arch-chroot /mnt systemctl enable docker
 arch-chroot /mnt systemctl enable libvirtd
+arch-chroot /mnt systemctl enable check-secure-boot
 arch-chroot /mnt systemctl enable apparmor
+arch-chroot /mnt systemctl enable auditor.timer
+arch-chroot /mnt systemctl enable auditd-notify
 
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
