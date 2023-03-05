@@ -1,5 +1,7 @@
 [Unit]
 Description=Run pacnew-notify.service every day
+Requires=graphical.target
+After=graphical.target
 
 [Timer]
 OnCalendar=daily

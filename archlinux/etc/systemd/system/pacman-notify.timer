@@ -1,5 +1,7 @@
 [Unit]
 Description=Run pacman-notify.service every hour
+Requires=graphical.target
+After=graphical.target
 
 [Timer]
 OnCalendar=hourly
