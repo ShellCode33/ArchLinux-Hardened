@@ -1,0 +1,13 @@
+[Unit]
+Description=Start the script that will monitor /var/log/audit.log and send critical desktop notifications
+Requires=graphical.target
+After=graphical.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/auditd-notify
+Restart=on-failure
+RestartSec=3s
+
+[Install]
+WantedBy=graphical.target

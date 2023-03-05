@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+"""
+Script that monitors auditd logs to send relevant Desktop notifications.
+
+Inspired by AppArmor's aa-notify.
+See: https://gitlab.com/apparmor/apparmor/-/blob/master/utils/aa-notify
+"""
+
+from io import TextIOWrapper
+import sys
+import os
+import re
+import time
+from subprocess import run
+from typing import Dict, Iterable, Tuple
+
+DEFAULT_SLEEP = 1
+LOG_FILE = "/var/log/audit/audit.log"
+
+def follow_auditd_events() -> Iterable:
+    boot_time = None
+
+    # Get timestamp at which system booted to know from which point we should process events
+    with open("/proc/stat", "r") as file:
+        for line in file:
+            if line.startswith("btime"):
+                boot_time = int(line.split()[1])
+                break
+
+    if not boot_time:
+        raise ValueError("Unable to find boot time")
+
+    # Record initial file size to detect if log rotates
+    log_size = os.stat(LOG_FILE).st_size
+    # Record initial file inode number to detect if log gets renamed
+    log_inode = os.stat(LOG_FILE).st_ino
+
+    logdata = open(LOG_FILE, "r")
+
+    # Skip events that occured before boot
+    for line in logdata:
+        match = re.search(r'audit\((\d+)\.\d+:\d+\)', line)
+        
+        if not match:
+            raise ValueError("Unable to parse auditd log entry: " + line)
+
+        timestamp = int(match.group(1))
+
+        if timestamp > boot_time:
+            # First event that occured after boot is found !
+            # We must stop skipping lines. But we still want to process this one.
+            # So we seek back before that line
+            logdata.seek(logdata.tell() - len(line))
+            break
+
+    while True:
+        logdata, log_inode, log_size = reopen_logfile_if_needed(logdata, log_inode, log_size)
+
+        for event in logdata:
+            yield event
+
+        time.sleep(DEFAULT_SLEEP)
+
+    logdata.close()
+
+
+def reopen_logfile_if_needed(logdata: TextIOWrapper, log_inode: int, log_size: int) -> Tuple[TextIOWrapper, int, int]:
+    retry = True
+
+    while retry:
+        try:
+            stat = os.stat(LOG_FILE)
+
+            # Reopen file if inode has changed, e.g. rename by logrotate
+            if stat.st_ino != log_inode:
+                logdata = open(LOG_FILE, 'r')
+                # Store new inode number for next comparisons
+                log_inode = stat.st_ino
+
+            # Start reading from the beginning if file shrank
+            if stat.st_size < log_size:
+                logdata.seek(0)
+                log_size = stat.st_size  # Reset file size value
+
+            # Record new file size if grown
+            if stat.st_size > log_size:
+                log_size = stat.st_size
+
+            retry = False
+        except FileNotFoundError:
+            time.sleep(DEFAULT_SLEEP)
+
+    return logdata, log_inode, log_size
+
+
+# Examples of logs to parse:
+# type=DAEMON_ROTATE msg=audit(1677959023.483:5737): op=rotate-logs auid=0 uid=0 ses=4294967295 pid=1 subj=unconfined res=successAUID="root" UID="root"
+# type=AVC msg=audit(1677959181.975:4): apparmor="STATUS" info="AppArmor Filesystem Enabled" pid=1 comm="swapper/0"
+# type=AVC msg=audit(1677959203.946:105): apparmor="STATUS" operation="profile_load" profile="unconfined" name="docker-default" pid=671 comm="apparmor_parser"
+# type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
+# type=PROCTITLE msg=audit(1677959203.476:99): proctitle="(systemd)"
+# type=USER_START msg=audit(1677959203.479:100): pid=625 uid=0 auid=1000 ses=2 subj=unconfined msg='op=PAM:session_open grantors=pam_loginuid,pam_loginuid,pam_keyinit,pam_systemd_home,pam_limits,pam_unix,pam_permit,pam_mail,pam_systemd,pam_env acct="shellcode" exe="/usr/lib/systemd/systemd" hostname=? addr=? terminal=? res=success'UID="root" AUID="shellcode"
+def parse_auditd_entry(event: str) -> Dict:
+    log_entry = {}
+
+    # First we replace some parts of the entry for an easier split
+    event = event.replace("msg=audit(", "timestamp=") # )
+    event = event.replace("msg='", "")
+    event = event.replace("'", "")
+    event = event.replace("", " ") # enriched logs
+    index = event.find(":")
+
+    if index == -1:
+        raise ValueError("Unable to parse log entry")
+
+    event = f"{event[:index]} event_id={event[index+1:]}"
+
+    index = event.find(":")
+
+    if index == -1:
+        raise ValueError("Unable to parse log entry")
+
+    event = f"{event[:index-1]}{event[index+1:]}"
+    print(event)
+
+    # Then we split spaces and equal signs to create a dict
+    tokens = event.split()
+
+    for token in tokens:
+        tokens = token.split("=")
+
+        # Key has no value, ignoring it
+        if len(tokens) == 1:
+            continue
+
+        key, value = tokens
+
+        # Clean value if necessary
+        if (value[0] == '"' and value[-1] == '"') or (value[0] == "'" and value[-1] == "'"):
+            value = value[1:-1]
+        
+        log_entry[key] = value
+
+    return log_entry
+
+def notify(title: str, body: str) -> None:
+    run(["/usr/local/bin/notify-all-users",
+         "--urgency", "critical",
+         title, body], check=True)
+
+# Examples of logs considered relevant
+# type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
+# type=SERVICE_START msg=audit(1677959205.903:147): pid=1 uid=0 auid=4294967295 ses=4294967295 subj=unconfined msg='unit=check-secure-boot comm="systemd" exe="/usr/lib/systemd/systemd" hostname=? addr=? terminal=? res=failed'UID="root" AUID="unset"
+def notify_if_relevant(log_entry: dict) -> None:
+    if "apparmor" in log_entry and log_entry["apparmor"] == "DENIED":
+        title = "APPARMOR DENIAL"
+        body = f"Profile: {log_entry['profile']}\n" \
+               f"Operation: {log_entry['operation']}\n" \
+               f"On: {log_entry['name']}\n" \
+               f"By: {log_entry['FSUID']}\n" \
+               f"Denied: {log_entry['denied_mask']}"
+
+    elif log_entry["type"] == "SERVICE_START" and log_entry["res"] == "failed":
+        title = "SYSTEMD SERVICE FAILED TO START"
+        body = f"Unit: {log_entry['unit']}\n" \
+               f"As: {log_entry['UID']}"
+
+    elif log_entry["type"] == "USER_AUTH" and log_entry["res"] == "failed":
+        title = "AUTHENTICATION FAILURE"
+        body = f"From: {log_entry['UID']}\n" \
+               f"Using: {log_entry['exe']}"
+
+    else: # not considered relevant
+        return
+
+    notify(title, body)
+
+def main():
+    try:
+        for event in follow_auditd_events():
+            parsed_event = parse_auditd_entry(event)
+            notify_if_relevant(parsed_event)
+    except Exception as exc:
+        notify("AUDITD LOGS MONITORING FAILURE", str(exc))
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
