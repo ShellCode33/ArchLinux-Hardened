@@ -1,0 +1,11 @@
+[Unit]
+Description=Run auditor.service every week
+Requires=graphical.target
+After=graphical.target
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
