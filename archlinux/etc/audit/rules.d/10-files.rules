@@ -1,0 +1,22 @@
+# Monitor changes to /etc/shadow
+-w /etc/shadow -p rwa -k etc_shadow
+
+# System wide LD_PRELOAD (typical rootkit)
+-w /etc/ld.so.preload -p wa -k etc_ld_so_preload
+
+# Potential bootkit
+-w /usr/bin/arch-secure-boot -p wa -k secure_boot_manager
+-w /etc/arch-secure-boot/keys -p rwa -k secure_boot_keys
+-w /efi -p wa -k efi_boot
+
+# Monitor auditd itself, someone might try to alter its configuration to increase stealthyness
+-w /var/log/audit/ -p wa -k auditd_tampering
+-w /etc/audit/ -p wa -k auditd_tampering
+-w /etc/libaudit.conf -p wa -k auditd_tampering
+-w /usr/bin/auditctl -p x -k auditd_tampering
+-w /usr/bin/auditd -p x -k auditd_tampering
+-w /usr/bin/auditd -p x -k auditd_tampering
+-w /usr/bin/augenrules -p x -k auditd_tampering
+
+# Detect privileged process accessing home directories
+-a always,exit -F dir=/home -F uid=0 -F auid>=1000 -F auid!=-1 -C auid!=obj_uid -k power_abuse

@@ -1,0 +1,2 @@
+# Make auditd rules immutable, cannot change them at runtime
+-e 2
