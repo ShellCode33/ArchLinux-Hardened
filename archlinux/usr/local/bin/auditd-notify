@@ -172,6 +172,60 @@ def notify_if_relevant(log_entry: dict) -> None:
         body = f"From: {log_entry['UID']}\n" \
                f"Using: {log_entry['exe']}"
 
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "etc_shadow" and log_entry["exe"] not in ("/usr/bin/sudo", "/usr/bin/su"):
+        title = "SECRET FILE ACCESS"
+        body = f"Path: /etc/shadow\n" \
+               f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "secure_boot_keys" and log_entry["exe"] != "/usr/bin/arch-secure-boot":
+        title = "SECRET FILE ACCESS"
+        body = f"Path: /etc/arch-secure-boot/keys/\n" \
+               f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "etc_ld_so_preload":
+        title = "ROOTKIT BEHAVIOR DETECTED"
+        body = f"Path: /etc/ld.so.preload\n" \
+               f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "efi_boot" and log_entry["exe"] != "/usr/bin/arch-secure-boot":
+        title = "BOOTKIT BEHAVIOR DETECTED"
+        body = f"Path: /efi\n" \
+               f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "secure_boot_manager":
+        title = "BOOTKIT BEHAVIOR DETECTED"
+        body = f"Path: /usr/bin/arch-secure-boot\n" \
+               f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "auditd_tampering":
+        title = "AUDITD TAMPERING"
+        body = f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "power_abuse":
+        title = "PRIVILEGED PROCESS READING HOME DIRECTORY"
+        body = f"From: {log_entry['AUID']}\n" \
+               f"Using: {log_entry['exe']}\n" \
+               f"Syscall: {log_entry['SYSCALL']}\n" \
+               f"Success: {log_entry['success']}"
+
     else: # not considered relevant
         return
 
