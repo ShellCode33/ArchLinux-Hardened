@@ -28,6 +28,8 @@ ETC_SHADOW_WHITELIST = [
     "/usr/bin/unix_chkpwd",
     "/usr/bin/swaylock",
     "/usr/bin/sshd",
+    "/usr/bin/login",
+    "/usr/lib/systemd/systemd",
 ]
 
 def follow_auditd_events() -> Iterable:
