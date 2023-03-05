@@ -19,6 +19,17 @@ from typing import Dict, Iterable, Tuple
 DEFAULT_SLEEP = 1
 LOG_FILE = "/var/log/audit/audit.log"
 
+# There are many binaries that need access to /etc/shadow
+# We want to monitor access to this file, but we also dont
+# want false positives. This whitelist aims to prevent FP.
+ETC_SHADOW_WHITELIST = [
+    "/usr/bin/sudo",
+    "/usr/bin/su",
+    "/usr/bin/unix_chkpwd",
+    "/usr/bin/swaylock",
+    "/usr/bin/sshd",
+]
+
 def follow_auditd_events() -> Iterable:
     boot_time = None
 
@@ -157,6 +168,11 @@ def notify(title: str, body: str) -> None:
 # type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
 # type=SERVICE_START msg=audit(1677959205.903:147): pid=1 uid=0 auid=4294967295 ses=4294967295 subj=unconfined msg='unit=check-secure-boot comm="systemd" exe="/usr/lib/systemd/systemd" hostname=? addr=? terminal=? res=failed'UID="root" AUID="unset"
 def notify_if_relevant(log_entry: dict) -> None:
+
+    if "AUID" in log_entry and log_entry["AUID"] == "unset":
+        # If AUID is unset, ignore it because it's a system service doing its thing
+        return
+
     if "apparmor" in log_entry and log_entry["apparmor"] == "DENIED":
         title = "APPARMOR DENIAL"
         body = f"Profile: {log_entry['profile']}\n" \
@@ -175,7 +191,7 @@ def notify_if_relevant(log_entry: dict) -> None:
         body = f"From: {log_entry['UID']}\n" \
                f"Using: {log_entry['exe']}"
 
-    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "etc_shadow" and log_entry["exe"] not in ("/usr/bin/sudo", "/usr/bin/su"):
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "etc_shadow" and log_entry["exe"] not in ETC_SHADOW_WHITELIST:
         title = "SECRET FILE ACCESS"
         body = f"Path: /etc/shadow\n" \
                f"From: {log_entry['AUID']}\n" \
@@ -183,7 +199,7 @@ def notify_if_relevant(log_entry: dict) -> None:
                f"Syscall: {log_entry['SYSCALL']}\n" \
                f"Success: {log_entry['success']}"
 
-    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "secure_boot_keys" and log_entry["exe"] != "/usr/bin/arch-secure-boot":
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "secure_boot_keys" and log_entry["exe"] not in ("/usr/bin/sbsign", "/usr/bin/find"):
         title = "SECRET FILE ACCESS"
         body = f"Path: /etc/arch-secure-boot/keys/\n" \
                f"From: {log_entry['AUID']}\n" \
@@ -194,22 +210,6 @@ def notify_if_relevant(log_entry: dict) -> None:
     elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "etc_ld_so_preload":
         title = "ROOTKIT BEHAVIOR DETECTED"
         body = f"Path: /etc/ld.so.preload\n" \
-               f"From: {log_entry['AUID']}\n" \
-               f"Using: {log_entry['exe']}\n" \
-               f"Syscall: {log_entry['SYSCALL']}\n" \
-               f"Success: {log_entry['success']}"
-
-    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "efi_boot" and log_entry["exe"] != "/usr/bin/arch-secure-boot":
-        title = "BOOTKIT BEHAVIOR DETECTED"
-        body = f"Path: /efi\n" \
-               f"From: {log_entry['AUID']}\n" \
-               f"Using: {log_entry['exe']}\n" \
-               f"Syscall: {log_entry['SYSCALL']}\n" \
-               f"Success: {log_entry['success']}"
-
-    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "secure_boot_manager":
-        title = "BOOTKIT BEHAVIOR DETECTED"
-        body = f"Path: /usr/bin/arch-secure-boot\n" \
                f"From: {log_entry['AUID']}\n" \
                f"Using: {log_entry['exe']}\n" \
                f"Syscall: {log_entry['SYSCALL']}\n" \
