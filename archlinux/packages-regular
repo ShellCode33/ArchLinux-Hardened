@@ -31,8 +31,6 @@ firefox
 
 # Security
 apparmor 
-python-notify2 # for aa-notify
-python-psutil # for aa-notify
 polkit
 keepassxc
 
