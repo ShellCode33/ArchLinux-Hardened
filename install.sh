@@ -118,7 +118,7 @@ test -z "$user" && echo >&2 "user cannot be empty" && exit 1
 
 password=$(get_password "User" "Enter password") || exit 1
 clear
-test -z "$user" && echo >&2 "password cannot be empty" && exit 1
+test -z "$password" && echo >&2 "password cannot be empty" && exit 1
 
 echo "Setting up fastest mirrors..."
 reflector --country France,Germany --latest 30 --sort rate --save /etc/pacman.d/mirrorlist
@@ -149,10 +149,20 @@ btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
 btrfs subvolume create /mnt/@swap
 btrfs subvolume create /mnt/@snapshots
+btrfs subvolume create /mnt/@libvirt
 btrfs subvolume create /mnt/@docker
 btrfs subvolume create /mnt/@cache-pacman-pkgs
-btrfs subvolume create /mnt/@tmp-var
+btrfs subvolume create /mnt/@var
+btrfs subvolume create /mnt/@var-log
+btrfs subvolume create /mnt/@var-tmp
 umount /mnt
+
+#
+# Great btrfs documentations:
+# https://en.opensuse.org/SDB:BTRFS
+# https://wiki.debian.org/Btrfs
+# https://wiki.archlinux.org/title/btrfs
+#
 
 mount_opt="defaults,noatime,nodiratime,compress=zstd,space_cache=v2"
 mount -o subvol=@,$mount_opt /dev/mapper/archlinux /mnt
@@ -160,12 +170,15 @@ mount --mkdir -o umask=0077 "${part_boot}" /mnt/efi
 mount --mkdir -o subvol=@home,$mount_opt /dev/mapper/archlinux /mnt/home
 mount --mkdir -o subvol=@swap,$mount_opt /dev/mapper/archlinux /mnt/.swap
 mount --mkdir -o subvol=@snapshots,umask=0077,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
-mount --mkdir -o subvol=@docker,$mount_opt /dev/mapper/archlinux /mnt/var/lib/docker
+mount --mkdir -o subvol=@var,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var
+mount --mkdir -o subvol=@var-log,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/log
+mount --mkdir -o subvol=@libvirt,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/lib/libvirt
+mount --mkdir -o subvol=@docker,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/lib/docker # I feel like using the btrfs storage driver of Docker is not safe yet (nocow for now)
 
 # Not worth snapshoting, creating subvolumes for them so that they're not included
 # Be careful not to break a potential future rollback of /@ !!
 mount --mkdir -o subvol=@cache-pacman-pkgs,$mount_opt /dev/mapper/archlinux /mnt/var/cache/pacman/pkg
-mount --mkdir -o subvol=@tmp-var,$mount_opt /dev/mapper/archlinux /mnt/var/tmp
+mount --mkdir -o subvol=@var-tmp,$mount_opt /dev/mapper/archlinux /mnt/var/tmp
 
 # Create swapfile for btrfs main system
 btrfs filesystem mkswapfile /mnt/.swap/swapfile
@@ -282,9 +295,9 @@ arch-chroot /mnt plymouth-set-default-theme colorful_loop
 
 cat << EOF > /mnt/etc/mkinitcpio.conf
 MODULES=(i915)
-BINARIES=()
+BINARIES=(setfont)
 FILES=()
-HOOKS=(base consolefont keymap udev autodetect modconf block plymouth plymouth-encrypt filesystems keyboard)
+HOOKS=(base consolefont keymap udev autodetect modconf block plymouth encrypt filesystems keyboard)
 EOF
 
 # This must be done after plymouth is installed from the AUR
