@@ -13,11 +13,11 @@ First, identify the USB device using lsblk, example:
 $ lsblk
 NAME          MAJ:MIN RM   SIZE RO TYPE  MOUNTPOINTS
 sda             8:0    0 931.5G  0 disk  
-├─sda1          8:1    0   300M  0 part  /boot/efi
+├─sda1          8:1    0   300M  0 part  /efi
 └─sda2          8:2    0 931.2G  0 part  
   └─cryptroot 254:0    0 931.2G  0 crypt /
-sdb             8:16   1   7.5G  0 disk  
-└─sdb1          8:17   1   7.5G  0 part  
+sdb             8:16   1 115.7G  0 disk  
+└─sdb1          8:17   1 115.7G  0 part  
 ```
 
 Here we will use the device ``/dev/sdb``.
@@ -32,7 +32,7 @@ Write random data to the whole device:
 sudo dd if=/dev/random of=/dev/sdb status=progress
 ```
 
-Remove any FS magic bytes (in case dd randomly created valid ones)
+Remove any FS magic bytes (in case dd randomly created valid ones) otherwise some tools will complain:
 
 ```
 lsblk -plnx size -o name /dev/sdb | sudo xargs -n1 wipefs --all
@@ -234,8 +234,6 @@ Add the following to the cryptsetup-initramfs hook:
 echo 'KEYFILE_PATTERN="/root/luks_*.keyfile"' | sudo tee -a /mnt/etc/cryptsetup-initramfs/conf-hook
 ```
 
-We now have to configure `/etc/crypttab` and `/etc/fstab` the same way we did for the main computer.
-
 Run the following command to open the LUKS storage partition automatically at boot:
 
 ```
@@ -335,7 +333,7 @@ The setup of the Linux OS embedded onto the device will come later.
 Make sure the Linux partition of the USB drive is mounted and copy the previously created keyfile to the root of your main computer:
 
 ```
-sudo cp /mnt/root/luks_${luks_storage_uuid}.keyfile /root/luks_${luks_storage_uuid}.keyfile 
+sudo cp "/mnt/root/luks_${luks_storage_uuid}.keyfile" "/root/luks_${luks_storage_uuid}.keyfile"
 ```
 DANGER: the keyfile should be readable only by root !!
 
