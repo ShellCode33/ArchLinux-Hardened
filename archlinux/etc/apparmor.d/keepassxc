@@ -14,7 +14,7 @@ profile keepassxc /usr/bin/keepassxc {
   # Needed to change the cursor when hovering over a text field, etc.
   owner /run/user/*/wayland-cursor* rw,
   
-  # Needed to view and edit keepass databases in documents directory
+  # Needed to open keepass databases
   owner @{HOME}/@{XDG_DATA_DIR}/keepassxc/ rwl,
   owner @{HOME}/@{XDG_DATA_DIR}/keepassxc/** rwl,
 
@@ -25,6 +25,7 @@ profile keepassxc /usr/bin/keepassxc {
   deny @{user_share_dirs}/recently-used.xbel* rw,
 
   # Config
+  owner @{HOME}/@{XDG_CONFIG_DIR}/ w,
   owner @{HOME}/@{XDG_CONFIG_DIR}/keepassxc/** rwlk,
 
   # Other
