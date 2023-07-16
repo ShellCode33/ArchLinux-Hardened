@@ -173,10 +173,6 @@ def notify(title: str, body: str) -> None:
 # type=SERVICE_START msg=audit(1677959205.903:147): pid=1 uid=0 auid=4294967295 ses=4294967295 subj=unconfined msg='unit=check-secure-boot comm="systemd" exe="/usr/lib/systemd/systemd" hostname=? addr=? terminal=? res=failed'UID="root" AUID="unset"
 def notify_if_relevant(log_entry: dict) -> None:
 
-    if "AUID" in log_entry and log_entry["AUID"] == "unset":
-        # If AUID is unset, ignore it because it's a system service doing its thing
-        return
-
     if "apparmor" in log_entry and log_entry["apparmor"] == "DENIED":
         title = "APPARMOR DENIAL"
         body = f"Profile: {log_entry['profile']}\n" \
