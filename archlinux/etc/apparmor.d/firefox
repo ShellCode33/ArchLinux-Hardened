@@ -49,6 +49,8 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
   # Firefox subprocesses
   ptrace trace peer=firefox,
   /usr/bin/{bash,dash} rix,
+  /usr/bin/xdg-open rPx,
+  /usr/lib/firefox/glxtest rix,
   # Use px instead of Px to avoid env scrubbing for LD_PRELOAD libEGL.so, libmozsandbox.so
   /{usr/bin,usr/lib/firefox*}/firefox* mrpx,
   owner /dev/shm/shmfd-* rw,
@@ -84,10 +86,6 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
 
   # MIME handlers
   @{HOME}/@{XDG_DATA_DIR}/applications/{,**} r,
-
-  # External executables
-  /usr/bin/xdg-open rPx,
-  /usr/lib/firefox/glxtest rPx,
 
   # systemd-homed
   /{,var/}run/systemd/userdb/ r,
