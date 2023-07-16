@@ -30,6 +30,9 @@ profile keepassxc /usr/bin/keepassxc {
   # Fonts
   owner @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/fonts.conf r,
 
+  # ssh-agent integration
+  owner @{HOME}/.ssh/{,**} r,
+
   # Translations
   /usr/share/qt/translations/{,**} r,
 
