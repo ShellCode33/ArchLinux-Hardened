@@ -11,5 +11,8 @@ profile ssh-agent /usr/bin/ssh-agent {
   include <abstractions/openssl>
   network unix stream,
 
+  /tmp/ w,
+  /tmp/ssh-*/{,**} rw,
+
   owner /run/user/*/ssh-agent.socket w,
 }
