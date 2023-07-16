@@ -23,7 +23,7 @@ copy_if_different() {
 
     if [ "$sha1from" != "$sha1to" ]
     then
-        mkdir -p "(dirname "$dest")"
+        mkdir -p "$(dirname "$dest")"
 	cp --interactive "$file" "$dest"
     fi
 }
