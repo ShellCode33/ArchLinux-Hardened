@@ -22,7 +22,7 @@ LOG_FILE = "/var/log/audit/audit.log"
 # There are many binaries that need access to /etc/shadow
 # We want to monitor access to this file, but we also dont
 # want false positives. This whitelist aims to prevent FP.
-ETC_SHADOW_WHITELIST = [
+ETC_SHADOW_WHITELIST = (
     "/usr/bin/sudo",
     "/usr/bin/su",
     "/usr/bin/unix_chkpwd",
@@ -30,7 +30,9 @@ ETC_SHADOW_WHITELIST = [
     "/usr/bin/sshd",
     "/usr/bin/login",
     "/usr/lib/systemd/systemd",
-]
+    "/usr/bin/systemd-tmpfiles",
+    "/usr/lib/polkit-1/polkit-agent-helper-1",
+)
 
 def follow_auditd_events() -> Iterable:
     boot_time = None
@@ -217,7 +219,7 @@ def notify_if_relevant(log_entry: dict) -> None:
                f"Syscall: {log_entry['SYSCALL']}\n" \
                f"Success: {log_entry['success']}"
 
-    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "auditd_tampering":
+    elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "auditd_tampering" and log_entry["exe"] not in ("/usr/bin/pacman"):
         title = "AUDITD TAMPERING"
         body = f"From: {log_entry['AUID']}\n" \
                f"Using: {log_entry['exe']}\n" \
