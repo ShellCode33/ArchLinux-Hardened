@@ -25,6 +25,9 @@ profile iwd /usr/lib/iwd/iwd {
   owner @{sys}/devices/pci[0-9]*/**/phy[0-9]/** r,
   owner @{sys}/devices/pci[0-9]*/**/modalias r,
 
+  # Proc FS
+  /proc/sys/net/ipv{4,6}/conf/wlan0/* w,
+
   # Connection information (e.g. wifi passwords)
   owner /var/lib/iwd/{,**} rw,
 }
