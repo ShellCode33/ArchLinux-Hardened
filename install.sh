@@ -104,10 +104,6 @@ lets_go=$(get_choice "Are you absolutely sure ?" "YOU ARE ABOUT TO ERASE EVERYTH
 clear
 [[ "$lets_go" == "No" ]] && exit 1
 
-# Start writing random bytes to the device in the background while we do other things
-dd if=/dev/random of="$device" status=progress > /dev/null 2>&1 &
-dd_pid=$!
-
 hostname=$(get_input "Hostname" "Enter hostname") || exit 1
 clear
 test -z "$hostname" && echo >&2 "hostname cannot be empty" && exit 1
@@ -125,7 +121,7 @@ reflector --country France,Germany --latest 30 --sort rate --save /etc/pacman.d/
 clear
 
 echo "Writing random bytes to $device, go grab some coffee it might take a while"
-wait "$dd_pid" # waiting for the previous dd command to complete
+dd bs=1M if=/dev/urandom of="$device" status=progress || true
 
 # Setting up partitions
 lsblk -plnx size -o name "${device}" | xargs -n1 wipefs --all
@@ -203,6 +199,9 @@ ln -sfT dash /mnt/usr/bin/sh
 {
     # Customize Linux Security Modules to include AppArmor
     echo -n "lsm=landlock,lockdown,yama,integrity,apparmor,bpf"
+
+    # Put kernel in integrity lockdown mode
+    echo -n " lockdown=integrity"
 
     # The LUKS device to decrypt
     echo -n " cryptdevice=${part_root}:archlinux"
