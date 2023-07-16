@@ -8,6 +8,17 @@ then
     exit 1
 fi
 
+# To differenciate between a residual db.lock and a systemd
+# service running pacman in the background
+if pgrep -x pacman &> /dev/null
+then
+    echo
+    echo -e "\e[31mWAIT FOR PACMAN TO COMPLETE\e[0m"
+    echo
+    echo "Refusing to run because pacman is already running."
+    exit 1
+fi
+
 if /usr/bin/pacman -Qu &> /dev/null
 then
     echo
