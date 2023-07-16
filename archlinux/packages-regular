@@ -16,6 +16,7 @@ vulkan-intel
 # Filesystem tools
 btrfs-progs
 gparted
+gptfdisk
 
 # Secure boot
 efibootmgr
@@ -28,6 +29,7 @@ dhcpcd
 iwd
 iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
 firefox
+wget
 
 # Security
 apparmor 
@@ -43,6 +45,7 @@ virt-manager
 audit # Log system failures and important security events
 fwupd # Hardware firmware updates manager
 dunst # Notification daemon
+htop
 
 # Desktop environment
 sway
@@ -67,6 +70,10 @@ otf-fantasque-sans-mono
 noto-fonts-emoji
 terminus-font # TTY font
 
+# Themes
+arc-gtk-theme
+papirus-icon-theme
+
 # Dev
 neovim
 git
@@ -81,21 +88,21 @@ man-pages
 gdb
 strace
 
-# File viewers
+# File viewers/editors
 zathura
 swayimg
 mpv
+gimp
 
-# Other
+# CLI
 zsh
 dash
-wget
-gimp
+dialog
+
+# Other
 most
 fzf
-htop
 p7zip
 unzip
+debootstrap # see backups/ENROLL_USB_DEVICE.md
 signal-desktop
-arc-gtk-theme
-papirus-icon-theme
