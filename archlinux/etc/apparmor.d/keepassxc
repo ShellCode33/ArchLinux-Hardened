@@ -25,8 +25,13 @@ profile keepassxc /usr/bin/keepassxc {
   deny @{user_share_dirs}/recently-used.xbel* rw,
 
   # Config
-  owner @{HOME}/@{XDG_CONFIG_DIR}/ w,
-  owner @{HOME}/@{XDG_CONFIG_DIR}/keepassxc/** rwlk,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/keepassxc/{,**} rwlk,
+
+  # Fonts
+  owner @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/fonts.conf r,
+
+  # Translations
+  /usr/share/qt/translations/{,**} r,
 
   # Other
   /usr/bin/keepassxc mr,
