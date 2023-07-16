@@ -1,4 +1,4 @@
-# Enroll USB device for backup purposes
+# Create a secure USB device
 
 Goals:
 
