@@ -37,6 +37,9 @@ profile keepassxc /usr/bin/keepassxc {
   /usr/bin/keepassxc mr,
   @{system_share_dirs}/keepassxc/** r,
 
+  # Deny cache
+  deny @{HOME}/@{XDG_CACHE_DIR}/keepassxc/{,**} rwkl,
+
   # GVFS isn't tested :)
   deny @{system_share_dirs}/gvfs/remote-volume-monitors/ r,
 
