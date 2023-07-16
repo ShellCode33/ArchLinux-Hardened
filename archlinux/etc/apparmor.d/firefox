@@ -78,6 +78,17 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
   owner @{HOME}/.mozilla/{,**} rwlk,
   owner @{HOME}/@{XDG_CACHE_DIR}/mozilla/{,**} rwlk,
 
+  # Configs
+  @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/{,**} r,
+  @{HOME}/@{XDG_CONFIG_DIR}/user-dirs.dirs r,
+
+  # MIME handlers
+  @{HOME}/@{XDG_DATA_DIR}/applications/{,**} r,
+
+  # External executables
+  /usr/bin/xdg-open rPx,
+  /usr/lib/firefox/glxtest rPx,
+
   # systemd-homed
   /{,var/}run/systemd/userdb/ r,
 
