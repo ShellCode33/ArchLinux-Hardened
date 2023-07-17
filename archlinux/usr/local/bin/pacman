@@ -10,7 +10,7 @@ fi
 
 # To differenciate between a residual db.lock and a systemd
 # service running pacman in the background
-if pgrep -x pacman &> /dev/null
+if pgrep -f /usr/bin/pacman &>/dev/null
 then
     echo
     echo -e "\e[31mWAIT FOR PACMAN TO COMPLETE\e[0m"
