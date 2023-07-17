@@ -141,7 +141,6 @@ def parse_auditd_entry(event: str) -> Dict:
         raise ValueError("Unable to parse log entry")
 
     event = f"{event[:index-1]}{event[index+1:]}"
-    print(event)
 
     # Then we split spaces and equal signs to create a dict
     tokens = event.split()
