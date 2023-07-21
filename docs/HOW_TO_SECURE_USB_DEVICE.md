@@ -6,6 +6,7 @@ Goals:
 - Data must be encrypted so that only you can read it
 - The USB device must be bootable to access encrypted data on any physical computer you have access to
 - If the USB device is lost and someone plugs it in its own computer, contact details must be readable
+- Using the device must be seemless, we already have a hardened setup, we don't want to bother having to type one more password
 
 First, identify the USB device using lsblk, example:
 
@@ -140,7 +141,7 @@ We want it to :
 Debian has been choosen for two reasons:
 
 - Because it's very stable, if we have to boot into this USB device it probably means something went wrong at some point and we don't want to deal with a broken install
-- Because it supports secure boot out of the box, meaning we will be able to boot into it on any computer (which allows us to boot into external USB)
+- Because it supports secure boot out of the box, meaning we will be able to boot into it on any computer (as long as it allows us to boot into external USB)
 
 You might want to read [Installing Debian GNU/Linux from a Unix/Linux System](https://www.debian.org/releases/stable/amd64/apds03.en.html). Otherwise, just follow along.
 
@@ -150,7 +151,7 @@ In order to install Debian on the USB device while using Arch, you must install 
 sudo pacman -S debootstrap
 ```
 
-Mount the Linux partition perviously created on the USB device:
+Mount the Linux partition previously created on the USB device:
 
 ```
 sudo mount "/dev/mapper/$luks_root_uuid" /mnt
@@ -222,7 +223,7 @@ sudo cryptsetup luksAddKey /dev/sdb3 "/mnt/root/luks_${luks_root_uuid}.keyfile"
 sudo cryptsetup luksAddKey /dev/sdb4 "/mnt/root/luks_${luks_storage_uuid}.keyfile"
 ```
 
-And add the following to the crypttab so that they will be picked up by `cryptsetup-initramfs`:
+And add the following to crypttab so that `cryptsetup-initramfs` knows which key to use to allow the initramfs to decrypt the root partition:
 
 ```
 echo "$luks_root_uuid UUID=$luks_root_uuid /root/luks_${luks_root_uuid}.keyfile luks,discard" | sudo tee -a /mnt/etc/crypttab
@@ -328,14 +329,18 @@ And make sure everything is working properly ;)
 ## Auto-mount the external USB device on your PC
 
 In this chapter we are only interested in the storage area of the USB device.
-The setup of the Linux OS embedded onto the device will come later.
 
-Make sure the Linux partition of the USB drive is mounted and copy the previously created keyfile to the root of your main computer:
+Make sure the **Linux partition** (not the storage one) of the USB drive is mounted:
 
+```
+sudo mount /dev/sdb3 /mnt
+```
+
+And copy the previously created keyfile to the root of your main computer:
 ```
 sudo cp "/mnt/root/luks_${luks_storage_uuid}.keyfile" "/root/luks_${luks_storage_uuid}.keyfile"
 ```
-DANGER: the keyfile should be readable only by root !!
+Warning: the keyfile should be readable only by root !!
 
 Create a folder where the USB drive will be mounted:
 
@@ -343,7 +348,7 @@ Create a folder where the USB drive will be mounted:
 sudo mkdir -m 700 -p "/backups/$luks_storage_uuid"
 ```
 
-Run the following command to open the LUKS container automatically:
+Run the following command to open the LUKS container automatically using the keyfile:
 
 ```
 echo "$luks_storage_uuid UUID=$luks_storage_uuid /root/luks_${luks_storage_uuid}.keyfile luks,discard" | sudo tee -a /etc/crypttab
@@ -361,3 +366,10 @@ If your external USB device **filesystem is ext4**, run the following command:
 echo "/dev/mapper/$luks_storage_uuid /backups/$luks_storage_uuid ext4 defaults,noatime,nodiratime,nofail,x-systemd.device-timeout=100ms    0  2" | sudo tee -a /etc/fstab
 ```
 
+And boom, you're done, you can now unmount the Linux partition:
+
+```
+sudo umount /mnt
+```
+
+You can also try to reboot your computer to make sure the USB device is properly mounted at boot.
