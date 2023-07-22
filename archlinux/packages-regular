@@ -4,6 +4,7 @@ base-devel
 
 # Kernel related
 linux-hardened
+linux-hardened-headers
 linux-lts
 linux-firmware
 intel-ucode
@@ -46,16 +47,19 @@ audit # Log system failures and important security events
 fwupd # Hardware firmware updates manager
 dunst # Notification daemon
 htop
+iotop
 
 # Desktop environment
 sway
 swaylock
 swayidle
 swaybg
+xdg-desktop-portal-wlr # Enable screen sharing capabilites
+flameshot # Take screenshots
 foot # Terminal emulator
 wl-clipboard
 bemenu-wayland
-python-i3ipc # interact with Sway using Python
+python-i3ipc # Interact with Sway using Python
 python-psutil # status-bar requirement
 libnotify # notify-send
 qt5-wayland
@@ -63,6 +67,10 @@ qt6-wayland
 
 # Basic services
 pipewire
+pipewire-audio
+pipewire-alsa
+pipewire-jack
+pipewire-pulse
 openssh
 
 # Fonts
@@ -93,6 +101,8 @@ zathura
 swayimg
 mpv
 gimp
+tree
+fzf
 
 # CLI
 zsh
@@ -101,7 +111,6 @@ dialog
 
 # Other
 most
-fzf
 p7zip
 unzip
 debootstrap # see backups/ENROLL_USB_DEVICE.md
