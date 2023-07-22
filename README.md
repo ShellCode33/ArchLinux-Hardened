@@ -22,6 +22,10 @@ Therefore this setup is not recommended if you don't have good GNU/Linux knowled
 - Auditd notifications
 - Many systemd services helping you managing your system and keeping it secure
 
+Here's a sample of notifications you might get if you use this setup:
+
+![alt security notification](images/security-notifications.png)
+
 ## FAQ
 
 TODO
