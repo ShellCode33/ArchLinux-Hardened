@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -u
 # coding: utf-8
 
 """
@@ -45,6 +45,7 @@ def check_homes_permission() -> List[str]:
     """
     Check that NO permission is given to "others".
     """
+
     homes_with_wrong_perm = []
     home_folder = "/home"
 
@@ -84,24 +85,22 @@ def check_docker() -> List[str]:
 
 def check_secure_boot() -> bool:
     """
-    Check if secure boot is enabled.
+    Returns True if secure boot is enabled, False otherwise.
     """
-    try:
-        output = check_output(["/usr/bin/sbctl", "status"]).decode()
-    except CalledProcessError:
+
+    sb_file = None
+
+    for file in os.listdir("/sys/firmware/efi/efivars"):
+        if file.startswith("SecureBoot-"):
+            sb_file = f"/sys/firmware/efi/efivars/{file}"
+
+    if sb_file is None:
         return False
 
-    for line in output.split("\n"):
-        line = line.lower()
-        if line.startswith("secure boot"):
-            if "disabled" in line:
-                return False
-            elif "enabled" in line:
-                return True
-            else:
-                raise ValueError("This should not happen, please report this bug")
-
-    return False
+    with open(sb_file, "rb") as stream:
+        content = stream.read()
+        return content[4] == 1
+            
 
 def vercmp(ver1, ver2) -> int:
     """
@@ -113,6 +112,7 @@ def check_local_cves() -> List[Tuple[str, str]]:
     """
     Compare installed packages to the list of reported CVEs by ArchLinux.
     """
+
     local_cves = []
     cves_to_ignore = []
 
@@ -123,7 +123,7 @@ def check_local_cves() -> List[Tuple[str, str]]:
                 comment_index = line.find("#")
 
                 if comment_index != -1:
-                    cve_to_ignore = cve_to_ignore[comment_index:]
+                    cve_to_ignore = cve_to_ignore[:comment_index]
 
                 cve_to_ignore = cve_to_ignore.strip()
 
@@ -131,6 +131,8 @@ def check_local_cves() -> List[Tuple[str, str]]:
                     cves_to_ignore.append(cve_to_ignore)
     except FileNotFoundError:
         pass
+
+    print("CVEs ignore list:", cves_to_ignore)
 
     output = check_output(["/usr/bin/pacman", "-Qn"]).decode().split("\n")
 
@@ -162,6 +164,9 @@ def check_local_cves() -> List[Tuple[str, str]]:
         if not cves:
             continue
 
+        if len(cves) > 5:
+            cves = cves[:4] + ["and more..."] 
+
         cves = " ".join(cves)
 
         for package in impacted_packages:
@@ -179,7 +184,7 @@ def check_local_cves() -> List[Tuple[str, str]]:
     return local_cves
 
 def report(title: str, body: str, urgency: str = "critical"):
-    print("NOTIFY", json.dumps({"urgency": urgency, "title": title, "body": body}), flush=True)
+    print("NOTIFY", json.dumps({"urgency": urgency, "title": title, "body": body}))
 
 def main() -> None:
 
@@ -189,14 +194,7 @@ def main() -> None:
 
     report("AUDIT IN PROGRESS", "The auditor script is looking for security issues...", urgency="normal")
 
-    world_writables_files = []
-    check_world_writable("/", world_writables_files)
-
-    if world_writables_files:
-        report("DANGEROUS PERMISSIONS DETECTED",
-               "\nAnyone can write to those files:\n\n" +
-               "\n".join(world_writables_files))
-
+    print("Checking home folders permissions...")
     too_permissive_homes_perm = check_homes_permission()
 
     if too_permissive_homes_perm:
@@ -204,6 +202,7 @@ def main() -> None:
                "\nThe following home folders are at risk:\n\n" +
                "\n".join(too_permissive_homes_perm))
 
+    print("Checking docker group...")
     people_in_docker_group = check_docker()
 
     if people_in_docker_group:
@@ -211,18 +210,28 @@ def main() -> None:
                "\nThe following users are in the docker group, noone should be in that group:\n\n" +
                "\n".join(people_in_docker_group))
 
-    # TODO: create a service that will check that at each boot instead?
+    print("Checking secure boot...")
     secure_boot_enabled = check_secure_boot()
     if not secure_boot_enabled:
-        report("SECURE BOOT DISABLED", "Fix it")
+        report("SECURE BOOT DISABLED", "Make sure to enable it in your BIOS")
 
+    print("Checking local CVEs...")
     packages_with_cve = check_local_cves()
 
     if packages_with_cve:
         report("VULNERABLE PACKAGES DETECTED",
                "\nThe following packages are vulnerable:\n\n" +
-               "\n".join([f"{p[0]} {p[1]}" for p in packages_with_cve]) +
-               "\n\nReview them and take action. Add the CVE to /etc/cve-ignore.list if they are not relevant to you.")
+               "\n\n".join([f"{p[0]}: {p[1]}" for p in packages_with_cve]) +
+               "\n\nReview them and take action.\nAdd the CVE to /etc/cve-ignore.list if they are not relevant to you.")
+
+    world_writables_files = []
+    print("Checking world writable files...")
+    check_world_writable("/", world_writables_files)
+
+    if world_writables_files:
+        report("DANGEROUS PERMISSIONS DETECTED",
+               "\nAnyone can write to those files:\n\n" +
+               "\n".join(world_writables_files))
 
     sys.exit(0)
 
