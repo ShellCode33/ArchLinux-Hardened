@@ -43,6 +43,9 @@ profile keepassxc /usr/bin/keepassxc {
   # GVFS isn't tested :)
   deny @{system_share_dirs}/gvfs/remote-volume-monitors/ r,
 
+  # Deny ptrace
+  deny ptrace read,
+
   # Deny /proc, /sys, /tmp, and /var
   deny @{PROC}/** r,
   deny @{sys}/** r,
