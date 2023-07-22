@@ -27,9 +27,6 @@ profile keepassxc /usr/bin/keepassxc {
   # Config
   owner @{HOME}/@{XDG_CONFIG_DIR}/keepassxc/{,**} rwlk,
 
-  # Fonts
-  owner @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/fonts.conf r,
-
   # ssh-agent integration
   owner @{HOME}/.ssh/{,**} r,
 

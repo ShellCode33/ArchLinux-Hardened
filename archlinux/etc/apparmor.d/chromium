@@ -41,7 +41,6 @@ profile ungoogled-chromium /usr/{bin/chromium,lib/chromium/chromium} {
   # Config file
   @{HOME}/@{XDG_CONFIG_DIR}/user-dirs.dirs r,
   @{HOME}/@{XDG_CONFIG_DIR}/chromium-flags.conf r,
-  @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/{,**} r,
 
   # External executables
   /usr/bin/xdg-open rPx,

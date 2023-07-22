@@ -19,6 +19,5 @@
 # Description: Where common programs should allow users to download
 # files
 
-  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/	      rw,
-  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/**        w,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/{,**}	      rw,
   owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/{,**}  r,

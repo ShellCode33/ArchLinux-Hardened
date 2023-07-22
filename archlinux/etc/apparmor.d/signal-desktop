@@ -6,7 +6,7 @@
 abi <abi/3.0>,
 include <tunables/global>
 
-profile signal-desktop /usr/{bin/signal-desktop,lib/signal-desktop/signal-desktop} {
+profile signal-desktop /usr/{,local/}{bin/signal-desktop,lib/signal-desktop/signal-desktop} {
   include <abstractions/audio>
   include <abstractions/base>
   include <abstractions/fonts>
@@ -16,6 +16,7 @@ profile signal-desktop /usr/{bin/signal-desktop,lib/signal-desktop/signal-deskto
   # Needed to function at all
   owner @{PROC}/*/fd/ r,
   @{PROC}/ r,
+  @{PROC}/sys/fs/inotify/max_user_watches r,
 
   # Networking
   include <abstractions/networking>
@@ -30,18 +31,20 @@ profile signal-desktop /usr/{bin/signal-desktop,lib/signal-desktop/signal-deskto
 
   # Helper programs
   /usr/bin/getconf rix,
-  /usr/{,s}bin/xdg-settings rCx,
+  /usr/bin/xdg-settings rcx,
+  /usr/bin/xargs rUx,
 
-  profile xdg-settings /usr/{,s}bin/xdg-settings {
+  profile xdg-settings /usr/bin/xdg-settings {
     include <abstractions/base>
 
-    /usr/{,s}bin/xdg-settings r,
+    /usr/bin/xdg-settings rUx,
 
+    @{HOME}/@{XDG_DATA_DIR}/applications/{,**} r,
     /usr/bin/{grep,basename,cut,which,readlink} rix,
   }
 
   # Chromium/Electron spawns and uses multiple processes
-  /usr/{bin/signal-desktop,lib/signal-desktop/signal-desktop} rPx,
+  /usr/{,local/}{bin/signal-desktop,lib/signal-desktop/signal-desktop} rPx,
   owner /dev/shm/.org.chromium.Chromium.* rw,
   owner /tmp/.org.chromium.Chromium.* mrw,
   owner /tmp/.org.chromium.Chromium.*/{,**} rw,
@@ -74,27 +77,29 @@ profile signal-desktop /usr/{bin/signal-desktop,lib/signal-desktop/signal-deskto
   @{sys}/bus/pci/devices/ r,
   @{sys}/bus/pci/devices/[0-9]*/resource r,
   @{sys}/devices/pci[0-9]*/**/{class,config,irq,resource} r,
-
-  # Nvidia users
-  include if exists <local/signal-desktop>
+  /usr/share/vulkan/icd.d/{,**} r,
 
   # Config
   owner @{HOME}/@{XDG_CONFIG_DIR}/Signal/{,**} rwk,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/user-dirs.dirs r,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/electron-flags.conf r,
 
   # Allow access for downloads and uploads
   include <abstractions/downloads-uploads>
 
+  # tmp
+  owner /tmp/scoped_*/{,**} rw,
+
   # File picker
   @{system_share_dirs}/glib-[0-9]*/schemas/gschemas.compiled r,
-  deny owner @{HOME}/@{XDG_CONFIG_DIR}/dconf/user r,
-  deny owner /run/user/*/dconf/user rw,
+  owner @{HOME}/@{XDG_CONFIG_DIR}/dconf/user r,
+  owner /run/user/*/dconf/user rw,
   deny @{user_share_dirs}/recently-used.xbel* rw,
 
   # Deny unnecessary permissions
 
   # Proc
   deny @{PROC}/modules r,
-  deny @{PROC}/sys/fs/inotify/max_user_watches r,
   deny @{PROC}/sys/kernel/random/boot_id r,
   deny @{PROC}/sys/kernel/yama/ptrace_scope r,
   deny @{PROC}/*/cgroup r,
@@ -121,4 +126,5 @@ profile signal-desktop /usr/{bin/signal-desktop,lib/signal-desktop/signal-deskto
   deny /usr/bin/{dbus-send,ldd,uname,xprop} rx,
   deny /usr/share/applications/ r,
   deny /usr/share/gvfs/{,**} r,
+  deny @{HOME}/@{XDG_CONFIG_DIR}/pulse/{,**} rw,
 }

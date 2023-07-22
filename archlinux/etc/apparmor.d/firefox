@@ -20,6 +20,8 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
   include <abstractions/hwaccel>
   /etc/libva.conf r,
   @{system_share_dirs}/libdrm/amdgpu.ids r,
+  @{sys}/devices/pci[0-9]*{,:[0-9]*}/[0-9]*:[0-9a-f]*:[0-9a-f]*.[0-9]*/ r,
+  @{sys}/devices/pci[0-9]*{,:[0-9]*}/[0-9]*:[0-9a-f]*:[0-9a-f]*.[0-9]*/[0-9]*:[0-9a-f]*:[0-9a-f]*.[0-9]*/ r,
   @{sys}/devices/pci[0-9]*/[0-9]*/**/[0-9]*/ r,
   @{sys}/devices/pci[0-9]*/**/drm/{,**} r,
   @{sys}/devices/pci[0-9]*/**/{irq,resource,revision,config,uevent} r,
@@ -81,7 +83,6 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
   owner @{HOME}/@{XDG_CACHE_DIR}/mozilla/{,**} rwlk,
 
   # Configs
-  @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/{,**} r,
   @{HOME}/@{XDG_CONFIG_DIR}/user-dirs.dirs r,
 
   # MIME handlers
@@ -92,6 +93,11 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
 
   # Needed to install addons, export files from addons
   owner /tmp/{,**} rwkl,
+
+  # Audio
+  owner /dev/shm/jack_db-*/{,**} rw,
+  /usr/share/pipewire/jack.conf r,
+  /etc/pipewire/jack.conf.d/{,**} r,
 
   # Don't allow launching other applications to open files
   deny /usr/bin/gio-launch-desktop rx,
@@ -123,4 +129,5 @@ profile firefox /{usr/bin,usr/lib/firefox*}/firefox* {
   deny @{HOME}/Desktop/ w,
   deny @{HOME}/.cache/thumbnails/{,**} rw,
   deny @{HOME}/.local/{,**} rw,
+  deny @{HOME}/@{XDG_CONFIG_DIR}/pulse/ rw,
 }

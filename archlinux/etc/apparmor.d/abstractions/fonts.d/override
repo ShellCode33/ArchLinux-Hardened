@@ -1,0 +1,4 @@
+# Override of default /etc/apparmor.d/abstractions/fonts
+
+owner @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/     r,
+owner @{HOME}/@{XDG_CONFIG_DIR}/fontconfig/**   r,
