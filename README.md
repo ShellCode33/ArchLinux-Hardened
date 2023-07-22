@@ -26,17 +26,11 @@ Here's a sample of notifications you might get if you use this setup:
 
 ![alt security notification](images/security-notifications.png)
 
-## FAQ
+## Additional documentation
 
-TODO
-
-- How many passwords will I have to remember ?
-- It doesn't seem to work in my VM, how can I make it work ?
-- Pacman/Yay doesn't want me to install packages, wtf ?
-- Help! My PC won't boot anymore!
-- How can I expose internal service to the outside world ? (SSH server, HTTP server, etc.)
-- Application XYZ doesn't work, AppArmor says it's denied, what do I do ?
-- I need to set an environment variable globally, how do I do that ?
+- [Manage SSH and GPG secrets securely without a password thanks to KeePassXC](docs/HOW_TO_MANAGE_SECRETS.md)
+- [Setup an auto-mounted encrypted standalone USB device](docs/HOW_TO_SECURE_USB_DEVICE.md)
+- [FAQ and troubleshooting](docs/FAQ_AND_TROUBLESHOOTING.md)
 
 ## Installation
 
@@ -45,12 +39,12 @@ By default, almost all computers are shipped with Microsoft's keys. This is to e
 secure boot on Windows. Note that [Microsoft offers a service](https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/file-signing-manage)
 that allows anyone to sign a UEFI firmware. So basically if you decide to use Microsoft's keys,
 anyone who manages to get its UEFI firmware signed will be able to bypass your secure boot.
-I don't want that. And I don't trust Microsoft. So I decided so enroll my own keys instead.
+I don't want that. And I don't trust Microsoft. So I decided to enroll my own keys instead.
 
-⚠  Replacing Microsoft's keys will probably break your Windows boot if you have one, in any case, [backing up those keys](https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot#Backing_up_current_variables) won't hurt.
+⚠  Replacing Microsoft's keys will probably break your Windows boot if you have one, this ArchLinux setup has not been tested with a Windows dual boot, use at your own risk. In any case, [backing up those keys](https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot#Backing_up_current_variables) won't hurt.
 
 - Set an admin password to restrict the access to your BIOS settings
-- Disable temporarly the secure boot in your BIOS settings
+- Disable temporarily the secure boot in your BIOS settings
 - Remove all the cryptographic keys from it and enter the "setup mode" (some BIOS won't let you enter the setup mode if the SB is not enabled, it's fine it will implicitly disable it)
 - Download and boot into the [ArchLinux ISO](https://archlinux.org/download/).
 
