@@ -17,7 +17,7 @@ fi
 sync
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
 
-notify-all-users --urgency critical --icon dialog-warning "LOW ON DISK SPACE" "Space left on device: $space_left"
+echo "NOTIFY {\"urgency\": \"critical\", \"title\": \"LOW ON DISK SPACE\", \"body\": \"Space left on device: $space_left\"}"
 
 # Tell auditd to try to resume logging
 kill -SIGUSR2 $PPID

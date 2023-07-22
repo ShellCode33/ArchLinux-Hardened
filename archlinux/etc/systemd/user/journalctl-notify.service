@@ -1,0 +1,11 @@
+[Unit]
+Description=Follow journalctl and send desktop notification based on the NOTIFY keyword
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/journalctl-notify
+
+[Install]
+WantedBy=graphical-session.target
+

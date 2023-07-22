@@ -1,7 +1,5 @@
 [Unit]
-Description=Start the script that will monitor /var/log/audit.log and send critical desktop notifications
-Requires=graphical.target
-After=graphical.target
+Description=Start the script that will monitor /var/log/audit.log and log relevant things
 
 [Service]
 Type=simple
@@ -10,4 +8,4 @@ Restart=on-failure
 RestartSec=3s
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target

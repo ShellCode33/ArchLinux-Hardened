@@ -279,6 +279,9 @@ arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
 # Install AUR packages
 grep -o '^[^ *#]*' archlinux/packages-aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
 
+# Configure systemd user services
+HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable journalctl-notify
+
 # Restore pacman wrapper
 mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
 

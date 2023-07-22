@@ -1,0 +1,123 @@
+#!/usr/bin/python3 -u
+
+import os
+import hashlib
+import psutil
+from datetime import datetime
+from subprocess import run, CalledProcessError, PIPE, DEVNULL
+
+# Do not edit, create a ~/.ssh/config entry
+SERVER_HOST = "backup-server"
+
+HOSTNAME = os.getenv("HOST")
+USERNAME = os.getenv("USER")
+BACKUP_PREFIX = f"backup-home-{USERNAME}-{HOSTNAME}"
+
+def cleanup() -> None:
+    for file in os.listdir("/home/{USERNAME}"):
+        if file.startswith(BACKUP_PREFIX):
+            os.unlink(f"/home/{USERNAME}/{file}")
+
+def backup_home() -> str:
+    """
+    Compress the user's home folder and return a path to the created archive.
+    """
+
+    date = datetime.now()
+    date_as_str = f"{date.year}-{date.month}-{date.day}--{date.hour}-{date.minute}-{date.second}--{date.microsecond}"
+    archive_name = f"{BACKUP_PREFIX}-{date_as_str}.tar.gz"
+    run(["/usr/bin/tar",
+         f"--exclude=/home/{USERNAME}/{BACKUP_PREFIX}*",
+         "--create",
+         "--gzip",
+         "--preserve-permissions",
+         f"--file={archive_name}",
+         "/home/{USERNAME}"],
+        cwd=f"/home/{USERNAME}",
+        stderr=PIPE,
+        stdout=DEVNULL,
+        check=True)
+
+    return f"/home/{USERNAME}/{archive_name}"
+
+def encrypt(filepath: str) -> str:
+    encrypted_filepath = f"{filepath}.gpg"
+
+    # TODO: make sure key is in GPG agent, fail otherwise
+
+    # Use the ssb key ID from the output of `gpg --list-secret-keys --keyid-format=long`
+    run(["/usr/bin/gpg",
+         "--recipient", "A548562A20375286",
+         "--cipher-algo", "AES256",
+         "--compress-algo", "none",
+         "--output", encrypted_filepath,
+         "--encrypt" filepath],
+        stderr=PIPE,
+        stdout=DEVNULL,
+        check=True)
+
+    return encrypted_filepath
+
+def upload(encrypted_filepath: str) -> None:
+
+    run(["/usr/bin/ssh",
+         "-oBatchMode=yes",
+         SERVER_HOST, f"mkdir -p {HOSTNAME}"],
+        stderr=PIPE,
+        stdout=DEVNULL,
+        check=True)
+
+    # Run scp in the background...
+    scp_process = Popen(["/usr/bin/scp", "-q",
+                         "-oBatchMode=yes",
+                         encrypted_filepath,
+                         f"{SERVER_HOST}:~/{HOSTNAME}/"],
+                        stderr=PIPE,
+                        stdout=DEVNULL,
+                        check=True)
+
+    # ...meanwhile we compute the hash
+    with open(encrypted_filepath, "rb") as stream:
+        sha1sum = hashlib.file_digest(stream, "sha1").hexdigest()
+
+    # Wait for scp to complete
+    stdout, stderr = scp_process.communicate()  
+
+    if scp_process.returncode != 0:
+        raise CalledProcessError(returncode=scp_process.returncode,
+                                 cmd=scp_process.args,
+                                 output=stdout,
+                                 stderr=stderr)
+
+    # The sha1 file marks the end of the backup process,
+    # this file is expected by the `harden-backup.py` script
+    run(["/usr/bin/ssh",
+         "-oBatchMode=yes",
+         SERVER_HOST,
+         f"echo -n {sha1sum} > {HOSTNAME}/{encrypted_filepath}.sha1"],
+        stderr=PIPE,
+        stdout=DEVNULL,
+        check=True)
+
+def main() -> None:
+
+    # We are not in a hurry, let's give a low 'nice' priority to the backup process
+    # so that we don't use too much system resources.
+    # Note: nice and ionice properties are inherited by subprocesses.
+    this_script = psutil.Process(os.getpid())
+    this_script.nice(10)
+    this_script.ionice(psutil.IOPRIO_CLASS_IDLE)
+
+    cleanup()
+
+    try:
+        archive_path = backup_home()
+        encrypted_archive_path = encrypt(archive_path)
+        upload(encrypted_archive_path)
+    except CalledProcessError as cpe:
+        print("ERROR:", cpe.stderr.decode())
+
+    cleanup()
+
+if __name__ == "__main__":
+    main()

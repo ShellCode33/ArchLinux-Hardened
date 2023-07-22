@@ -1,0 +1,50 @@
+#!/usr/bin/python3 -u
+
+import sys
+import subprocess
+import json
+
+def main() -> None:
+    proc = subprocess.Popen(['journalctl', '--boot', '--system', '--follow'],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL)
+
+    while proc.poll() is None:
+        line = proc.stdout.readline()
+
+        begin = line.find(b"NOTIFY")
+
+        if begin == -1:
+            continue
+
+        log = line[begin + len("NOTIFY"):].strip().decode()
+
+        try:
+            log = json.loads(log)
+        except json.JSONDecodeError as jde:
+            print("Wrong log format:", str(jde))
+            continue
+
+        if len(log) == 3:
+            urgency = log["urgency"]
+            title = log["title"]
+            body = log["body"]
+            subprocess.run(["/usr/bin/notify-send", "--urgency", urgency, title, body], check=True)
+
+        elif len(log) == 4:
+            urgency = log["urgency"]
+            icon = log["icon"]
+            title = log["title"]
+            body = log["body"]
+            subprocess.run(["/usr/bin/notify-send", "--urgency", urgency, "--icon", icon, title, body], check=True)
+
+        else:
+            print("Wrong log format:", log)
+            continue
+
+    # This script should never exit, if it does, something went wrong, exit with status 1
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

@@ -15,7 +15,7 @@ then
 fi
 
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-notify-all-users --urgency critical "CRITICALLY LOW ON DISK SPACE" "Starting to take action...\nSpace left on device: $space_left"
+echo "NOTIFY {\"urgency\": \"critical\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Starting to take action...\nSpace left on device: $space_left\"}"
 
 # Agressively cleaning pacman cache
 pacman -Scc
@@ -33,7 +33,7 @@ sync
 
 # Inform the admin what space is left after the cleanup
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-notify-all-users --urgency normal "CRITICALLY LOW ON DISK SPACE" "Necessary actions have been taken\nSpace left on device: $space_left"
+echo "NOTIFY {\"urgency\": \"normal\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Necessary actions have been taken\nSpace left on device: $space_left\"}"
 
 # Tell auditd to try to resume logging
 kill -SIGUSR2 $PPID

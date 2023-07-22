@@ -3,4 +3,4 @@ Description=Run the auditor script to check for system misconfigurations
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'notify-all-users "AUDIT IN PROGRESS" "The auditor script is looking for security issues..."; /usr/local/bin/auditor'
+ExecStart=/usr/local/bin/auditor

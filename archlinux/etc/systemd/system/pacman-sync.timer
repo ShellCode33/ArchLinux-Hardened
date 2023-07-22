@@ -1,7 +1,5 @@
 [Unit]
 Description=Run pacman-sync.service daily
-Requires=graphical.target
-After=graphical.target
 
 [Timer]
 OnCalendar=daily

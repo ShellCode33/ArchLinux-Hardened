@@ -1,11 +1,9 @@
 [Unit]
-Description=Check the secure boot status and send a desktop notification if it's disabled
-Requires=graphical.target
-After=graphical.target
+Description=Check the secure boot status at boot
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c '[ "$(hexdump /sys/firmware/efi/efivars/SecureBoot-* | awk \'{print $4}\')" = "0001" ] || notify-all-users --urgency critical "SECURE BOOT DISABLED" "Please take action"'
+ExecStart=/bin/bash -c '[ "$(hexdump /sys/firmware/efi/efivars/SecureBoot-* | awk \'{print $4}\')" = "0001" ] || echo \'NOTIFY {"urgency": "critical", "title": "SECURE BOOT DISABLED", "body": "Please take action"}\''
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target

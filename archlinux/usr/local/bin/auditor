@@ -10,6 +10,7 @@ See /etc/systemd/system/auditor.{service,timer}
 
 import os
 import sys
+import json
 from stat import S_ISDIR, S_ISREG, S_IWOTH, S_IXOTH, S_IRWXO
 from typing import List, Tuple
 from subprocess import CalledProcessError, run, check_output
@@ -177,20 +178,16 @@ def check_local_cves() -> List[Tuple[str, str]]:
 
     return local_cves
 
-def report(title: str, msg: str):
-    # print as well so they appear in journalctl
-    print(title)
-    print(msg)
-    print()
-    run(["/usr/local/bin/notify-all-users",
-         "--urgency", "critical",
-         title, msg], check=True)
+def report(title: str, body: str, urgency: str = "critical"):
+    print("NOTIFY", json.dumps({"urgency": urgency, "title": title, "body": body}), flush=True)
 
 def main() -> None:
 
     if os.geteuid() != 0:
         print("This script must be run as root.")
         sys.exit(1)
+
+    report("AUDIT IN PROGRESS", "The auditor script is looking for security issues...", urgency="normal")
 
     world_writables_files = []
     check_world_writable("/", world_writables_files)

@@ -11,6 +11,7 @@ See: https://gitlab.com/apparmor/apparmor/-/blob/master/utils/aa-notify
 from io import TextIOWrapper
 import sys
 import os
+import json
 import re
 import time
 from subprocess import run
@@ -163,9 +164,8 @@ def parse_auditd_entry(event: str) -> Dict:
     return log_entry
 
 def notify(title: str, body: str) -> None:
-    run(["/usr/local/bin/notify-all-users",
-         "--urgency", "critical",
-         title, body], check=True)
+    # See /usr/local/bin/journalctl-notify
+    print("NOTIFY", json.dumps({"urgency": "critical", "title": title, "body": body}), flush=True)
 
 # Examples of logs considered relevant
 # type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
@@ -176,8 +176,8 @@ def notify_if_relevant(log_entry: dict) -> None:
         title = "APPARMOR DENIAL"
         body = f"Profile: {log_entry['profile']}\n" \
                f"Operation: {log_entry['operation']}\n" \
-               f"On: {log_entry['name']}\n" \
-               f"By: {log_entry['FSUID']}\n" \
+               f"On: {log_entry.get('name', 'unknown')}\n" \
+               f"By: {log_entry.get('FSUID', 'unknown')}\n" \
                f"Denied: {log_entry['denied_mask']}"
 
     elif log_entry["type"] == "SERVICE_START" and log_entry["res"] == "failed":
