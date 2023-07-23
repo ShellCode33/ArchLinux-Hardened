@@ -243,6 +243,7 @@ arch-chroot /mnt systemctl enable btrfs-balance.timer
 arch-chroot /mnt systemctl enable pacman-sync.timer
 arch-chroot /mnt systemctl enable pacman-notify.timer
 arch-chroot /mnt systemctl enable pacnew-notify.timer
+arch-chroot /mnt systemctl enable dbus-broker
 arch-chroot /mnt systemctl enable dhcpcd
 arch-chroot /mnt systemctl enable iwd
 arch-chroot /mnt systemctl enable auditd
@@ -280,7 +281,10 @@ arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
 grep -o '^[^ *#]*' archlinux/packages-aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
 
 # Configure systemd user services
+HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable dbus-broker
 HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable journalctl-notify
+HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable pipewire
+HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable wireplumber
 
 # Restore pacman wrapper
 mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
