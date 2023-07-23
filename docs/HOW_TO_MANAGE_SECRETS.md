@@ -1,12 +1,7 @@
 # Secrets Management
 
-Everyone should be using a password manager, this is security 101. If you're not already, start doing so.
-
-In this tutorial we will be using [KeePassXC](https://keepassxc.org).
-
 I think everyone agrees that typing passwords is annoying, especially when you have long and complex passphrases.
-This tutorial aims to show you how to securely manage different kinds of secrets, so that you have to type
-only one password: KeePassXC's.
+This tutorial aims to show you how to securely manage different kinds of secrets, so that you have to type only one password: [KeePassXC](https://keepassxc.org)'s.
 
 
 ## SSH Keys
