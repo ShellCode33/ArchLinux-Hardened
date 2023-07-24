@@ -1,50 +1,70 @@
 #!/usr/bin/python3 -u
 
+import os
 import sys
-import subprocess
 import json
+import contextlib
+import asyncio
+from asyncio.subprocess import PIPE, DEVNULL
 
-def main() -> None:
-    proc = subprocess.Popen(['journalctl', '--boot', '--system', '--follow'],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL)
 
-    while proc.poll() is None:
-        line = proc.stdout.readline()
+async def is_running(proc):
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(proc.wait(), 1e-6)
+    return proc.returncode is None
 
-        begin = line.find(b"NOTIFY")
 
-        if begin == -1:
-            continue
+async def main() -> None:
+    journal_system = await asyncio.create_subprocess_exec('journalctl', '--boot', '--system', '--follow', '--lines=all',
+                                                          stdout=PIPE,
+                                                          stderr=DEVNULL)
 
-        log = line[begin + len("NOTIFY"):].strip().decode()
+    journal_user = await asyncio.create_subprocess_exec('journalctl', '--boot', '--user', '--follow', '--lines=all',
+                                                        stdout=PIPE,
+                                                        stderr=DEVNULL)
 
-        try:
-            log = json.loads(log)
-        except json.JSONDecodeError as jde:
-            print("Wrong log format:", str(jde))
-            continue
+    while await is_running(journal_system) and await is_running(journal_user):
+        for journal in (journal_system, journal_user):
+            while True: # Try to read as much lines as possible while there are some available
+                try:
+                    line = await asyncio.wait_for(journal.stdout.readline(), timeout=1) # The lower the timeout, the higher the CPU usage
+                except asyncio.TimeoutError:
+                    break # No new line available yet, try the next journal by breaking out
 
-        if len(log) == 3:
-            urgency = log["urgency"]
-            title = log["title"]
-            body = log["body"]
-            subprocess.run(["/usr/bin/notify-send", "--urgency", urgency, title, body], check=True)
+                begin = line.find(b"NOTIFY")
 
-        elif len(log) == 4:
-            urgency = log["urgency"]
-            icon = log["icon"]
-            title = log["title"]
-            body = log["body"]
-            subprocess.run(["/usr/bin/notify-send", "--urgency", urgency, "--icon", icon, title, body], check=True)
+                if begin == -1:
+                    continue
 
-        else:
-            print("Wrong log format:", log)
-            continue
+                log = line[begin + len("NOTIFY"):].strip().decode()
+
+                try:
+                    log = json.loads(log)
+                except json.JSONDecodeError as jde:
+                    print("Wrong log format:", log)
+                    continue
+
+                if len(log) == 3:
+                    urgency = log["urgency"]
+                    title = log["title"]
+                    body = log["body"]
+                    await asyncio.create_subprocess_exec("/usr/bin/notify-send", "--urgency", urgency, title, body)
+
+                elif len(log) == 4:
+                    urgency = log["urgency"]
+                    icon = log["icon"]
+                    title = log["title"]
+                    body = log["body"]
+                    await asyncio.create_subprocess_exec("/usr/bin/notify-send", "--urgency", urgency, "--icon", icon, title, body)
+
+                else:
+                    print("Wrong log format:", log)
+                    continue
 
     # This script should never exit, if it does, something went wrong, exit with status 1
+    print("Error: one of the subprocesses exited")
     sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
