@@ -31,6 +31,7 @@ iwd
 iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
 firefox
 wget
+dnsmasq # used by libvirtd
 
 # Security
 apparmor 
@@ -65,6 +66,7 @@ python-psutil # status-bar requirement
 libnotify # notify-send
 qt5-wayland
 qt6-wayland
+slurp # Select monitor region
 
 # Basic services
 pipewire
@@ -118,3 +120,5 @@ unzip
 debootstrap # see backups/ENROLL_USB_DEVICE.md
 signal-desktop
 usbutils
+wtype
+dmidecode # used by libvirtd
