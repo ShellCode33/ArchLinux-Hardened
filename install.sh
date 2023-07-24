@@ -219,7 +219,7 @@ ln -sfT dash /mnt/usr/bin/sh
     echo -n " audit=1"
 
     # Increase default log size
-    echo -n " audit_backlog_limit=8192"
+    echo -n " audit_backlog_limit=16384"
 
     # Completely quiet the boot process to display some eye candy using plymouth instead :)
     echo -n " quiet splash rd.udev.log_level=3"
@@ -235,25 +235,6 @@ ln -sf /usr/share/zoneinfo/Europe/Paris /mnt/etc/localtime
 arch-chroot /mnt locale-gen
 
 genfstab -U /mnt >> /mnt/etc/fstab
-
-# Configure systemd services
-arch-chroot /mnt systemctl enable getty@tty1
-arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
-arch-chroot /mnt systemctl enable btrfs-balance.timer
-arch-chroot /mnt systemctl enable pacman-sync.timer
-arch-chroot /mnt systemctl enable pacman-notify.timer
-arch-chroot /mnt systemctl enable pacnew-notify.timer
-arch-chroot /mnt systemctl enable dbus-broker
-arch-chroot /mnt systemctl enable dhcpcd
-arch-chroot /mnt systemctl enable iwd
-arch-chroot /mnt systemctl enable auditd
-arch-chroot /mnt systemctl enable nftables
-arch-chroot /mnt systemctl enable docker
-arch-chroot /mnt systemctl enable libvirtd
-arch-chroot /mnt systemctl enable check-secure-boot
-arch-chroot /mnt systemctl enable apparmor
-arch-chroot /mnt systemctl enable auditor.timer
-arch-chroot /mnt systemctl enable auditd-notify
 
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
@@ -279,12 +260,6 @@ arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
 
 # Install AUR packages
 grep -o '^[^ *#]*' archlinux/packages-aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
-
-# Configure systemd user services
-HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable dbus-broker
-HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable journalctl-notify
-HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable pipewire
-HOME="/home/$user" arch-chroot -u "$user" /mnt systemctl --user enable wireplumber
 
 # Restore pacman wrapper
 mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
@@ -317,6 +292,31 @@ arch-chroot /mnt arch-secure-boot initial-setup
 # Hardenning
 arch-chroot /mnt chmod 700 /boot
 arch-chroot /mnt passwd -dl root
+
+# Configure systemd services
+arch-chroot /mnt systemctl enable getty@tty1
+arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
+arch-chroot /mnt systemctl enable btrfs-balance.timer
+arch-chroot /mnt systemctl enable pacman-sync.timer
+arch-chroot /mnt systemctl enable pacman-notify.timer
+arch-chroot /mnt systemctl enable pacnew-notify.timer
+arch-chroot /mnt systemctl enable dbus-broker
+arch-chroot /mnt systemctl enable dhcpcd
+arch-chroot /mnt systemctl enable iwd
+arch-chroot /mnt systemctl enable auditd
+arch-chroot /mnt systemctl enable nftables
+arch-chroot /mnt systemctl enable docker
+arch-chroot /mnt systemctl enable libvirtd
+arch-chroot /mnt systemctl enable check-secure-boot
+arch-chroot /mnt systemctl enable apparmor
+arch-chroot /mnt systemctl enable auditor.timer
+arch-chroot /mnt systemctl enable auditd-notify
+
+# Configure systemd user services
+arch-chroot /mnt systemctl --global enable dbus-broker
+arch-chroot /mnt systemctl --global enable journalctl-notify
+arch-chroot /mnt systemctl --global enable pipewire
+arch-chroot /mnt systemctl --global enable wireplumber
 
 # Run userspace configuration
 HOME="/home/$user" arch-chroot -u "$user" /mnt /bin/bash -c 'cd && \
