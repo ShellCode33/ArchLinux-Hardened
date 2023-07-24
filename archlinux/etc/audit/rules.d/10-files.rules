@@ -16,7 +16,6 @@
 -w /etc/libaudit.conf -p wa -k auditd_tampering
 -w /usr/bin/auditctl -p x -k auditd_tampering
 -w /usr/bin/auditd -p x -k auditd_tampering
--w /usr/bin/auditd -p x -k auditd_tampering
 -w /usr/bin/augenrules -p x -k auditd_tampering
 
 # Detect privileged process accessing home directories
