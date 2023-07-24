@@ -1,0 +1,9 @@
+[Unit]
+Description=Automatically backup the home folder and send the encrypted archive to a remote server
+
+[Service]
+Type=oneshot
+Restart=on-failure
+RestartSec=600
+Environment=GPG_RECIPIENT=A548562A20375286
+ExecStart=/usr/local/bin/backup-to-cloud
