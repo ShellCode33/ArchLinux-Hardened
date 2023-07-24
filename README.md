@@ -15,12 +15,39 @@ Therefore this setup is not recommended if you don't have good GNU/Linux knowled
 
 ## Highlights
 
-- Secure boot
-- Hardened kernel and LTS fallback
+Physical tampering hardening:
+
+- Secure boot without Microsoft's keys
+- No GRUB-like bootloader, the kernel is booted into directly thanks to [unified kernel images](https://wiki.archlinux.org/title/Unified_kernel_image)
 - Full disk encryption using LUKS 2
+
+Exploit mitigation:
+
+- ArchLinux's hardened kernel
+- Kernel's lockdown mode set to "integrity"
 - AppArmor
-- Auditd notifications
-- Many systemd services helping you managing your system and keeping it secure
+
+Network hardening:
+
+- Reverse Path Filtering set to strict
+- ICMP redirects disabled
+- Strict firewalling rules
+
+System monitoring:
+
+- Auditd reporting through desktop notifications
+- Many systemd services helping you to manage your system and keeping it secure
+
+System resilience:
+
+- LTS kernel fallback from the BIOS to fix a broken system
+- Automated encrypted backups uploaded to a remote server (manual configuration required)
+- Automated encrypted incremental backups to an external USB drive (manual configuration required)
+
+
+This setup uses desktop notifications extensively, I think this is a good way of monitoring your PC.
+
+I want to know what's going at all times, if something fails I want to be aware of it as soon as possible so I can fix it.
 
 Here's a sample of notifications you might get if you use this setup:
 
