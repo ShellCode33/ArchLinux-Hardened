@@ -7,6 +7,12 @@ import contextlib
 import asyncio
 from asyncio.subprocess import PIPE, DEVNULL
 
+# Sleeping a little bit is very important to prevent reaching the TasksMax limit of systemd.
+# See: https://unix.stackexchange.com/questions/253903/creating-threads-fails-with-resource-temporarily-unavailable-with-4-3-kernel
+# It can happen that you have many logs to report which could cause this script to spawn many notify-send processes and therefore
+# reaching the TasksMax limit. It will basically crash.
+SLEEP_BETWEEN_NOTIFY = 0.1
+
 
 async def is_running(proc):
     with contextlib.suppress(asyncio.TimeoutError):
@@ -49,6 +55,7 @@ async def main() -> None:
                     title = log["title"]
                     body = log["body"]
                     await asyncio.create_subprocess_exec("/usr/bin/notify-send", "--urgency", urgency, title, body)
+                    await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
 
                 elif len(log) == 4:
                     urgency = log["urgency"]
@@ -56,6 +63,7 @@ async def main() -> None:
                     title = log["title"]
                     body = log["body"]
                     await asyncio.create_subprocess_exec("/usr/bin/notify-send", "--urgency", urgency, "--icon", icon, title, body)
+                    await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
 
                 else:
                     print("Wrong log format:", log)
