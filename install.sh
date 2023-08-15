@@ -318,6 +318,7 @@ arch-chroot /mnt systemctl --global enable dbus-broker
 arch-chroot /mnt systemctl --global enable journalctl-notify
 arch-chroot /mnt systemctl --global enable pipewire
 arch-chroot /mnt systemctl --global enable wireplumber
+arch-chroot /mnt systemctl --global enable gammastep
 
 # Run userspace configuration
 HOME="/home/$user" arch-chroot -u "$user" /mnt /bin/bash -c 'cd && \

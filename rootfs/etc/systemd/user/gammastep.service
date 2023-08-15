@@ -1,0 +1,11 @@
+[Unit]
+Description=Display color temperature adjustment
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/gammastep
+
+[Install]
+WantedBy=graphical-session.target
+
