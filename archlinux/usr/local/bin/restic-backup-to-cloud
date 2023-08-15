@@ -1,0 +1,75 @@
+#!/usr/bin/python3 -u
+
+import os
+import sys
+import json
+import psutil
+import os.path
+from subprocess import run, CalledProcessError, PIPE, DEVNULL
+
+# Do not edit, create a ~/.ssh/config entry
+SERVER_HOST = "backup-server"
+
+HOME = os.getenv("HOME")
+
+# Set these in restic-unattended.service
+BACKUP_USER = os.getenv("BACKUP_USER")
+RESTIC_REPO_NAME = os.getenv("RESTIC_REPO_NAME")
+
+def notify(title: str, body: str, urgency: str = "normal"):
+
+    if urgency == "critical":
+        icon = "computer-fail"
+    else:
+        icon = "synology-cloud-station-backup"
+        
+    print("NOTIFY", json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}))
+
+def main() -> None:
+
+    notify("SYSTEM MAINTENANCE", "Incremental backup of the home folder in progress...")
+
+    # We are not in a hurry, let's give a low 'nice' priority to the backup process
+    # so that we don't use too much system resources.
+    # Note: nice and ionice properties are inherited by subprocesses.
+    this_script = psutil.Process(os.getpid())
+    this_script.nice(10)
+    this_script.ionice(psutil.IOPRIO_CLASS_IDLE)
+
+    if not HOME:
+        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed: HOME variable is not set, wtf ?", urgency="critical")
+        sys.exit(1)
+
+    if not BACKUP_USER:
+        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed: BACKUP_USER variable is not set", urgency="critical")
+        sys.exit(1)
+
+    if not RESTIC_REPO_NAME:
+        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed: RESTIC_REPO_NAME variable is not set", urgency="critical")
+        sys.exit(1)
+
+    try:
+        run(["/usr/bin/restic", "-r",
+             f"sftp:{BACKUP_USER}@{SERVER_HOST}:{RESTIC_REPO_NAME}",
+             "backup", "--no-scan", "--one-file-system",
+             "--exclude", f"{HOME}/.cache/*",
+             HOME],
+            stderr=PIPE,
+            stdout=DEVNULL,
+            check=True)
+
+        notify("SYSTEM MAINTENANCE", "Incremental backup of the home folder successful !")
+        return_code = 0
+
+    except CalledProcessError as cpe:
+        error_str = cpe.stderr.decode()
+        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed with:\n\n" + error_str, urgency="critical")
+        return_code = 1
+    except Exception as exc:
+        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed with:\n\n" + str(exc), urgency="critical")
+        return_code = 1
+
+    sys.exit(return_code)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,12 @@
+[Unit]
+Description=Automatically backup the home folder to a remote server using Restic
+
+[Service]
+Type=oneshot
+Restart=on-failure
+RestartSec=600
+Environment=GOMAXPROCS=1
+Environment=RESTIC_PASSWORD_FILE=%h/.local/share/restic/password
+Environment=BACKUP_USER=backup
+Environment=RESTIC_REPO_NAME=restic-repo
+ExecStart=/usr/local/bin/restic-backup-to-cloud

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run restic-unattended.service daily
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
