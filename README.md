@@ -1,10 +1,8 @@
 # ArchLinux Hardened
 
-⚠ WORK IN PROGRESS ⚠
-
 This repository contains my ArchLinux setup which focuses on desktop security.
 
-Beside security, my setup also aims to use all the bleeding edge and most advanced software we currently have, most notably:
+Beside security, my setup also aims to use all the bleeding edge and most powerful software we currently have available, most notably:
 
 - Btrfs : [copy-on-write](https://en.wikipedia.org/wiki/Copy-on-write) filesystem with snapshot support
 - Wayland : because X11 is old, slow, and insecure
@@ -12,6 +10,12 @@ Beside security, my setup also aims to use all the bleeding edge and most advanc
 
 Because of its hardened nature, you might have to get your hands dirty to get things to work.
 Therefore this setup is not recommended if you don't have good GNU/Linux knowledge already.
+
+## Status
+
+Even though I use it as my daily driver, this is still work in progress.
+
+Some work is yet to be done regarding AppArmor and btrfs snapshots.
 
 ## Highlights
 
@@ -31,12 +35,12 @@ Network hardening:
 
 - Reverse Path Filtering set to strict
 - ICMP redirects disabled
-- Strict firewalling rules
+- Strict firewalling rules (default output policy is `drop`, see [NETWORKING.md](https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md))
 
 System monitoring:
 
 - Auditd reporting through desktop notifications
-- Many systemd services helping you to manage your system and keeping it secure
+- Many systemd services helping you to manage your system to keep it secure
 
 System resilience:
 
@@ -68,11 +72,10 @@ that allows anyone to sign a UEFI firmware. So basically if you decide to use Mi
 anyone who manages to get its UEFI firmware signed will be able to bypass your secure boot.
 I don't want that. And I don't trust Microsoft. So I decided to enroll my own keys instead.
 
-⚠  Replacing Microsoft's keys will probably break your Windows boot if you have one, this ArchLinux setup has not been tested with a Windows dual boot, use at your own risk. In any case, [backing up those keys](https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot#Backing_up_current_variables) won't hurt.
+⚠  Replacing Microsoft's keys will probably break your Windows boot if you have one, this ArchLinux setup has not been tested with a Windows dual boot, use at your own risk. In any case, [backing up those keys](https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot#Backing_up_current_variables) won't hurt (note that some BIOS allow you to reset keys to their factory default, meaning Microsoft's keys).
 
-- Set an admin password to restrict the access to your BIOS settings
-- Disable temporarily the secure boot in your BIOS settings
-- Remove all the cryptographic keys from it and enter the "setup mode" (some BIOS won't let you enter the setup mode if the SB is not enabled, it's fine it will implicitly disable it)
+- Set an admin password to restrict the access to your BIOS settings (add it to your password manager)
+- Remove all the cryptographic keys from your BIOS and enter the "setup mode" (some BIOS won't let you enter the setup mode if the SB is enabled)
 - Download and boot into the [ArchLinux ISO](https://archlinux.org/download/).
 
 Let's go!
