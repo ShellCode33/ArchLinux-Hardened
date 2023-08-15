@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -u
 # coding: utf-8
 
 """
@@ -147,7 +147,7 @@ def parse_auditd_entry(event: str) -> Dict:
     tokens = event.split()
 
     for token in tokens:
-        tokens = token.split("=")
+        tokens = token.split("=", 1)
 
         # Key has no value, ignoring it
         if len(tokens) == 1:
@@ -165,7 +165,7 @@ def parse_auditd_entry(event: str) -> Dict:
 
 def notify(title: str, body: str) -> None:
     # See /usr/local/bin/journalctl-notify
-    print("NOTIFY", json.dumps({"urgency": "critical", "title": title, "body": body}), flush=True)
+    print("NOTIFY", json.dumps({"urgency": "critical", "title": title, "body": body}))
 
 # Examples of logs considered relevant
 # type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
@@ -178,9 +178,9 @@ def notify_if_relevant(log_entry: dict) -> None:
                f"Operation: {log_entry['operation']}\n" \
                f"On: {log_entry.get('name', 'unknown')}\n" \
                f"By: {log_entry.get('FSUID', 'unknown')}\n" \
-               f"Denied: {log_entry['denied_mask']}"
+               f"Denied: {log_entry.get('denied_mask', 'unknown')}"
 
-    elif log_entry["type"] == "SERVICE_START" and log_entry["res"] == "failed":
+    if log_entry["type"] == "SERVICE_START" and log_entry["res"] == "failed":
         title = "SYSTEMD SERVICE FAILED TO START"
         body = f"Unit: {log_entry['unit']}\n" \
                f"As: {log_entry['UID']}"
