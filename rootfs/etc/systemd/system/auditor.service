@@ -3,4 +3,4 @@ Description=Run the auditor script to check for system misconfigurations
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/auditor
+ExecStart=/usr/local/bin/proxify /usr/local/bin/auditor

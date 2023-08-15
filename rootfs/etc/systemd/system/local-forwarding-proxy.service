@@ -1,0 +1,13 @@
+[Unit]
+Description=Forward proxy using Glider
+After=network.target nftables.service
+
+[Service]
+Type=simple
+User=http
+Restart=always
+LimitNOFILE=102400
+ExecStart=/usr/bin/glider -listen http://127.0.0.1:8080
+
+[Install]
+WantedBy=multi-user.target

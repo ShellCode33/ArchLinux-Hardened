@@ -1,17 +1,18 @@
 #!/usr/bin/python3
 
+from io import TextIOWrapper
 import os
 import re
 import os.path
 import requests
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 from configparser import ConfigParser
 
 FIREFOX_DIR = os.environ["HOME"] + "/.mozilla/firefox"
 USER_JS_OVERRIDES_PATH = f"{FIREFOX_DIR}/user-overrides.js"
 
 USER_JS_URL = "https://raw.githubusercontent.com/arkenfox/user.js/master/user.js"
-USER_PREF_REGEX = r'user_pref\("(?P<pref_key>.+)"'
+USER_PREF_REGEX = r'user_pref\("(?P<pref_key>.+)",\s*"?(?P<pref_value>[^"\)]+)'
 
 def get_profiles() -> List[Tuple[str, str]]:
 
@@ -72,19 +73,69 @@ def clean(profile_path: str) -> None:
             if match and match.group("pref_key") not in prefs_to_remove:
                 stream.write(f"{line}\n")
 
-def main() -> None:
-    try:
-        print(f"Downloading {USER_JS_URL}")
-        new_user_js_content = requests.get(USER_JS_URL, timeout=0.5).text
+def _find_proxy_in_stream(stream: TextIOWrapper, scheme: str) -> Tuple[Optional[str], Optional[str]]:
+    proxy_host = None
+    proxy_port = None
 
-        for profile_name, profile_path in get_profiles():
+    for line in stream:
+        match = re.search(USER_PREF_REGEX, line)
+
+        if match:
+            if match.group("pref_key") == f"network.proxy.{scheme}":
+                proxy_host = match.group("pref_value")
+            elif match.group("pref_key") == f"network.proxy.{scheme}_port":
+                proxy_port = match.group("pref_value")
+
+            if proxy_host and proxy_port:
+                break
+
+    return proxy_host, proxy_port
+
+def find_proxies() -> Dict[str, str]:
+    proxies = {}
+
+    for scheme in ("http", "ssl"):
+        with open(USER_JS_OVERRIDES_PATH, "r") as stream:
+            proxy_host, proxy_port = _find_proxy_in_stream(stream, scheme)
+
+            if proxy_host and proxy_port:
+                proxy_str = f"http://{proxy_host}:{proxy_port}"
+
+                if scheme not in proxies: 
+                    proxies[scheme] = proxy_str
+                elif proxies[scheme] != proxy_str:
+                    # FIXME: for now we are expecting that the HTTPS proxy points to the HTTP one.
+                    #        "network.proxy.share_proxy_settings" should probably be used instead.
+                    raise NotImplementedError("for now we are expecting HTTP(S) proxies to be the same")
+
+    return proxies
+
+
+def main() -> None:
+    profiles = get_profiles()
+    new_user_js_content = None
+
+    for _, proxy in (find_proxies() | {"": ""}).items(): # Add empty strings for no proxy at all
+        try:
+            print(f"Downloading {USER_JS_URL}")
+            new_user_js_content = requests.get(
+                USER_JS_URL,
+                timeout=0.5,
+                proxies={"http": proxy, "https": proxy}
+            ).text
+            break
+        except requests.exceptions.RequestException:
+            new_user_js_content = None
+
+    if new_user_js_content:
+        for profile_name, profile_path in profiles:
             profile_full_path = f"{FIREFOX_DIR}/{profile_path}"
             print(f"Processing profile: {profile_name}")
             install(profile_full_path, new_user_js_content)
             clean(profile_full_path)
 
-    except requests.exceptions.Timeout:
-        "Timeout reached, internet is probably not available, but it's ok, let's start Firefox anyway"
+    else:
+        print("Internet seems unreachable, but it's ok, let's start Firefox anyway")
 
     # Run the real Firefox
     os.execv("/usr/bin/firefox", ["firefox"])

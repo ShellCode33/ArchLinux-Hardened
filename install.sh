@@ -312,6 +312,7 @@ arch-chroot /mnt systemctl enable check-secure-boot
 arch-chroot /mnt systemctl enable apparmor
 arch-chroot /mnt systemctl enable auditor.timer
 arch-chroot /mnt systemctl enable auditd-notify
+arch-chroot /mnt systemctl enable local-forwarding-proxy
 
 # Configure systemd user services
 arch-chroot /mnt systemctl --global enable dbus-broker

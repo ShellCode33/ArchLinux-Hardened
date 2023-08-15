@@ -3,6 +3,6 @@ Description=Cache upgradable packages in the background but do not install them
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/pacman -Syuw --noconfirm
+ExecStart=/usr/local/bin/proxify /usr/bin/pacman -Syuw --noconfirm
 Restart=on-failure
 RestartSec=10s
