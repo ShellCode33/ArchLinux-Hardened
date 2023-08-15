@@ -69,6 +69,9 @@ libnotify # notify-send
 qt5-wayland
 qt6-wayland
 slurp # Select monitor region
+brightnessctl # Control monitor brightness
+gammastep # decrease blue light during the night
+playerctl # control various media players
 
 # Basic services
 pipewire
