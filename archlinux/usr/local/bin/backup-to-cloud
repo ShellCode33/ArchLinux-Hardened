@@ -1,5 +1,11 @@
 #!/usr/bin/python3 -u
 
+"""
+You probably want to use Restic instead of this home-made script.
+
+See: /usr/local/bin/restic-backup-to-cloud
+"""
+
 import os
 import sys
 import json
@@ -20,7 +26,13 @@ USERNAME = os.getenv("USER")
 BACKUP_PREFIX = f"backup-home-{USERNAME}-{HOSTNAME}"
 GPG_RECIPIENT = os.getenv("GPG_RECIPIENT")
 
-def notify(title: str, body: str, urgency: str = "normal", icon: str = "synology-cloud-station-backup"):
+def notify(title: str, body: str, urgency: str = "normal"):
+
+    if urgency == "critical":
+        icon = "computer-fail"
+    else:
+        icon = "synology-cloud-station-backup"
+
     print("NOTIFY", json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}))
 
 def cleanup() -> None:
@@ -107,8 +119,7 @@ def ssh_until_success(command: List[str]) -> None:
 
             notify("SYSTEM MAINTENANCE",
                    "Unable to access remote backup server, make sure the SSH key is in ssh-agent.\n\nIs KeePassXC unlocked ?",
-                   urgency="critical",
-                   icon="computer-fail")
+                   urgency="critical")
 
             sleep(10)
 
@@ -146,7 +157,6 @@ def process_not_uploaded_backups() -> None:
                 return
 
             upload(f"/home/{USERNAME}/{file}", actual_sha1sum)
-
 
 def main() -> None:
 
