@@ -34,9 +34,10 @@ wget
 dnsmasq # used by libvirtd
 
 # Security
-apparmor 
+apparmor
 polkit
 keepassxc
+restic # backup
 
 # Virtualization/Containerization
 docker
@@ -56,9 +57,10 @@ swaylock
 swayidle
 swaybg
 xdg-desktop-portal-wlr # Enable screen sharing capabilites
+xdg-desktop-portal-gtk # File chooser and others
 flameshot # Take screenshots
 grim # flameshot dependency for Wayland
-foot # Terminal emulator
+wezterm # Terminal emulator
 wl-clipboard
 bemenu-wayland
 python-i3ipc # Interact with Sway using Python
@@ -78,7 +80,7 @@ openssh
 dbus-broker # Improved DBUS implementation (performance and security)
 
 # Fonts
-otf-fantasque-sans-mono
+ttf-fantasque-nerd
 noto-fonts-emoji
 terminus-font # TTY font
 
@@ -89,6 +91,7 @@ papirus-icon-theme
 # Dev
 neovim
 git
+lazygit
 rust
 clang
 ipython
@@ -105,6 +108,7 @@ zathura
 swayimg
 mpv
 gimp
+imagemagick
 tree
 fzf
 
@@ -112,6 +116,8 @@ fzf
 zsh
 dash
 dialog
+ripgrep
+bat
 
 # Other
 most
