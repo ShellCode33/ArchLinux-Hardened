@@ -29,4 +29,4 @@ copy_if_different() {
 
 export -f copy_if_different
 
-find archlinux -type f ! -name "packages-*" -exec bash -c 'file="$1"; dest="/${file#archlinux/}"; copy_if_different "$file" "$dest"' shell {} \;
+find rootfs -type f ! -name "packages-*" -exec bash -c 'file="$1"; dest="/${file#rootfs/}"; copy_if_different "$file" "$dest"' shell {} \;
