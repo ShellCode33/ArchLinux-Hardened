@@ -61,6 +61,7 @@ Here's a sample of notifications you might get if you use this setup:
 
 - [Manage SSH and GPG secrets securely without a password thanks to KeePassXC](docs/HOW_TO_MANAGE_SECRETS.md)
 - [Setup an auto-mounted encrypted standalone USB device](docs/HOW_TO_SECURE_USB_DEVICE.md)
+- [Firefox hardening tips](docs/HOW_TO_FIREFOX.md)
 - [FAQ and troubleshooting](docs/FAQ_AND_TROUBLESHOOTING.md)
 
 ## Installation
