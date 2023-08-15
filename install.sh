@@ -180,13 +180,12 @@ btrfs filesystem mkswapfile /mnt/.swap/swapfile
 mkswap /mnt/.swap/swapfile # according to btrfs doc it shouldn't be needed, it's a bug
 swapon /mnt/.swap/swapfile # we use the swap so that genfstab detects it
 
-# Install all packages listed in archlinux/packages
-grep -o '^[^ *#]*' archlinux/packages-regular | pacstrap -K /mnt -
+# Install all packages listed in packages/regular
+grep -o '^[^ *#]*' packages/regular | pacstrap -K /mnt -
 
 # Copy custom files to the new installation
 cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/
-find archlinux -type f -exec bash -c 'file="$1"; dest="/mnt/${file#archlinux/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
-rm /mnt/packages-regular /mnt/packages-aur
+find rootfs -type f -exec bash -c 'file="$1"; dest="/mnt/${file#rootfs/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
 
 # Patch pacman config
 sed -i "s/#Color/Color/g" /mnt/etc/pacman.conf
@@ -261,7 +260,7 @@ arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
                                           makepkg -si --noconfirm'
 
 # Install AUR packages
-grep -o '^[^ *#]*' archlinux/packages-aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
+grep -o '^[^ *#]*' packages/aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
 
 # Restore pacman wrapper
 mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
