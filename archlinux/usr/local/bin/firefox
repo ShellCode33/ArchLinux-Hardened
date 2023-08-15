@@ -1,0 +1,93 @@
+#!/usr/bin/python3
+
+import os
+import re
+import os.path
+import requests
+from typing import List, Tuple
+from configparser import ConfigParser
+
+FIREFOX_DIR = os.environ["HOME"] + "/.mozilla/firefox"
+USER_JS_OVERRIDES_PATH = f"{FIREFOX_DIR}/user-overrides.js"
+
+USER_JS_URL = "https://raw.githubusercontent.com/arkenfox/user.js/master/user.js"
+USER_PREF_REGEX = r'user_pref\("(?P<pref_key>.+)"'
+
+def get_profiles() -> List[Tuple[str, str]]:
+
+    profiles = []
+
+    config = ConfigParser()
+    config.read(FIREFOX_DIR + "/profiles.ini")
+    
+    for section in config.sections():
+        if section.startswith("Profile"):
+            name = config[section]["Name"]
+            path = config[section]["Path"]
+            profiles.append((name, path))
+
+    return profiles
+
+def install(profile_path: str, new_user_js_content: str) -> None:
+    
+    user_js = f"{profile_path}/user.js"
+
+    with open(user_js, "w") as stream:
+        stream.write(new_user_js_content)
+
+        with open(USER_JS_OVERRIDES_PATH, "r") as stream_override:
+            stream.write("\n\n// ------ OVERRIDES START HERE ------\n\n")
+            stream.write(stream_override.read())
+
+def clean(profile_path: str) -> None:
+    """
+    Remove all entries from prefs.js that are in user.js regardless of whether they are active or not.
+    They will be set back from user.js next time Firefox starts.
+
+    Firefox must be closed for this to work because prefs.js is overwritten on exit.
+    """
+    user_js = f"{profile_path}/user.js"
+    prefs_js = f"{profile_path}/prefs.js"
+
+    # prefs.js doesnt exist, it might be an unused profile
+    if not os.path.exists(prefs_js):
+        return
+
+    prefs_to_remove = []
+
+    with open(user_js, "r") as stream:
+        for line in stream:
+            match = re.search(USER_PREF_REGEX, line)
+
+            if match:
+                prefs_to_remove.append(match.group("pref_key"))
+
+    with open(prefs_js, "r") as stream:
+        prefs_js_content = stream.read()
+
+    with open(prefs_js, "w") as stream:
+        for line in prefs_js_content.split("\n"):
+            match = re.match(USER_PREF_REGEX, line)
+
+            if match and match.group("pref_key") not in prefs_to_remove:
+                stream.write(f"{line}\n")
+
+def main() -> None:
+    try:
+        print(f"Downloading {USER_JS_URL}")
+        new_user_js_content = requests.get(USER_JS_URL, timeout=0.5).text
+
+        for profile_name, profile_path in get_profiles():
+            profile_full_path = f"{FIREFOX_DIR}/{profile_path}"
+            print(f"Processing profile: {profile_name}")
+            install(profile_full_path, new_user_js_content)
+            clean(profile_full_path)
+
+    except requests.exceptions.Timeout:
+        "Timeout reached, internet is probably not available, but it's ok, let's start Firefox anyway"
+
+    # Run the real Firefox
+    os.execv("/usr/bin/firefox", ["firefox"])
+
+if __name__ == "__main__":
+    main()
