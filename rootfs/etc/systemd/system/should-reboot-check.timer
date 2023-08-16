@@ -1,0 +1,9 @@
+[Unit]
+Description=Run should-reboot-check.service hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,81 @@
+#!/usr/bin/python3 -u
+
+import os
+import re
+import json
+from typing import Set, Tuple
+from subprocess import check_output
+from difflib import SequenceMatcher
+
+def notify(title: str, body: str) -> None:
+    # See /usr/local/bin/journalctl-notify
+    print("NOTIFY", json.dumps({"urgency": "critical", "title": title, "body": body, "icon": "system-reboot"}))
+
+def closeness(str1: str, str2: str) -> float:
+    return SequenceMatcher(None, str1, str2).ratio()
+
+def check_kernel() -> Tuple[str, str]:
+    """
+    Returns a tuple where the first is the kernel version currently running and the
+    second one is item is the installed kernel that looks the closest to the one running.
+    """
+    running_kernel = check_output(["/usr/bin/uname", "-r"]).decode().strip()
+
+    installed_kernels = [file for file in os.listdir("/boot") if file.startswith("vmlinu")]
+    kernels_versions = {}
+
+    for kernel_filename in installed_kernels:
+        file_output = check_output(["/usr/bin/file", f"/boot/{kernel_filename}"]).decode().strip()
+
+        # Linux kernel x86 boot executable bzImage, version 6.4.10-hardened1-1-hardened (linux-hardened@archlinux)
+        match = re.search(r"version\s+(?P<version>.*?)\s+", file_output)
+
+        if match:
+            kernels_versions[kernel_filename] = match.group("version")
+
+    # Find the installed kernel that is the closest to the one running
+    closest_kernel = max(kernels_versions,
+                         key=lambda k: closeness(kernels_versions[k], running_kernel))
+
+    return running_kernel, kernels_versions[closest_kernel]
+
+def check_libraries() -> Set[str]:
+    """
+    Returns a set of programs using outdated libraries that are still
+    in memory but have been updated on disk.
+    """
+    programs_using_outdated_libraries = set()
+    lsof_output = check_output(["/usr/bin/lsof", "+c", "0"]).decode()
+
+    for line in lsof_output.splitlines():
+        if re.search(r"DEL.*?lib", line):
+            program = line.split(maxsplit=1)[0]
+            programs_using_outdated_libraries.add(program)
+
+    return programs_using_outdated_libraries
+
+def main():
+    running_kernel, installed_kernel = check_kernel()
+    programs_using_outdated_libraries = check_libraries()
+
+    notif_body = ""
+
+    if running_kernel != installed_kernel:
+        notif_body += "Kernel has been updated, a reboot is required !\n\n"
+        notif_body += f"Running kernel:\n{running_kernel}\n\n"
+        notif_body += f"Installed kernel:\n{installed_kernel}"
+
+        if programs_using_outdated_libraries:
+            notif_body += "\n\n"
+
+    if programs_using_outdated_libraries:
+        notif_body += "The following programs are using outdated libraries, " \
+                      "you should restart them or reboot your system:\n\n"
+
+        notif_body += "\n".join(programs_using_outdated_libraries)
+
+    if notif_body:
+        notify("CONSIDER REBOOTING", "\n" + notif_body)
+
+if __name__ == "__main__":
+    main()

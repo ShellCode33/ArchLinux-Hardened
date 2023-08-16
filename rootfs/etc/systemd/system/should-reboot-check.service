@@ -1,0 +1,8 @@
+[Unit]
+Description=Check if the system should be rebooted because of kernel or libraries updates
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/should-reboot-check
+Restart=on-failure
+RestartSec=10s

@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Upgrade
+Type = Path
+Target = usr/lib/modules/*/vmlinu*
+
+[Action]
+Description = Checking if system should be rebooted...
+When = PostTransaction
+Exec = /usr/bin/systemctl start should-reboot-check.service

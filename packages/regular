@@ -51,6 +51,7 @@ fwupd # Hardware firmware updates manager
 dunst # Notification daemon
 htop
 iotop
+lsof
 
 # Desktop environment
 sway

@@ -296,11 +296,6 @@ arch-chroot /mnt passwd -dl root
 
 # Configure systemd services
 arch-chroot /mnt systemctl enable getty@tty1
-arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
-arch-chroot /mnt systemctl enable btrfs-balance.timer
-arch-chroot /mnt systemctl enable pacman-sync.timer
-arch-chroot /mnt systemctl enable pacman-notify.timer
-arch-chroot /mnt systemctl enable pacnew-notify.timer
 arch-chroot /mnt systemctl enable dbus-broker
 arch-chroot /mnt systemctl enable dhcpcd
 arch-chroot /mnt systemctl enable iwd
@@ -310,9 +305,17 @@ arch-chroot /mnt systemctl enable docker
 arch-chroot /mnt systemctl enable libvirtd
 arch-chroot /mnt systemctl enable check-secure-boot
 arch-chroot /mnt systemctl enable apparmor
-arch-chroot /mnt systemctl enable auditor.timer
 arch-chroot /mnt systemctl enable auditd-notify
 arch-chroot /mnt systemctl enable local-forwarding-proxy
+
+# Configure systemd timers
+arch-chroot /mnt systemctl enable auditor.timer
+arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
+arch-chroot /mnt systemctl enable btrfs-balance.timer
+arch-chroot /mnt systemctl enable pacman-sync.timer
+arch-chroot /mnt systemctl enable pacman-notify.timer
+arch-chroot /mnt systemctl enable pacnew-notify.timer
+arch-chroot /mnt systemctl enable should-reboot-check.timer
 
 # Configure systemd user services
 arch-chroot /mnt systemctl --global enable dbus-broker
