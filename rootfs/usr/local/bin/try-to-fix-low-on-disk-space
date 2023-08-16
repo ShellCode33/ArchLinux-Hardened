@@ -25,6 +25,7 @@ rm -rf /home/*/.cache/firefox
 rm -rf /home/*/.cache/chromium
 rm -rf /home/*/.cache/pip
 rm -rf /home/*/.cache/go-build
+rm -rf /home/*/.cache/debuginfod_client
 
 # Balance btrfs
 btrfs balance start -dusage=0 /
