@@ -3,4 +3,9 @@ Defaults passprompt="[sudo] password for %p: "
 Defaults insults
 Defaults pwfeedback
 
+Defaults editor="/usr/bin/nvim"
+
+Defaults env_keep += "ftp_proxy rsync_proxy http_proxy https_proxy no_proxy"
+Defaults env_keep += "FTP_PROXY RSYNC_PROXY HTTP_PROXY HTTPS_PROXY NO_PROXY"
+
 %wheel ALL=(ALL:ALL) ALL
