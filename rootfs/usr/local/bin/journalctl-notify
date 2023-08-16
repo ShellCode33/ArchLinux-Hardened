@@ -1,6 +1,5 @@
 #!/usr/bin/python3 -u
 
-import os
 import sys
 import json
 import contextlib
@@ -46,7 +45,7 @@ async def main() -> None:
 
                 try:
                     log = json.loads(log)
-                except json.JSONDecodeError as jde:
+                except json.JSONDecodeError:
                     print("Wrong log format:", log)
                     continue
 

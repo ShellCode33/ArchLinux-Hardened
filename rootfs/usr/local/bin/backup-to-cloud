@@ -16,15 +16,17 @@ import os.path
 from time import sleep
 from datetime import datetime
 from typing import List
-from subprocess import run, CalledProcessError, PIPE, DEVNULL, Popen, TimeoutExpired
+from subprocess import run, CalledProcessError, PIPE, DEVNULL
 
 # Do not edit, create a ~/.ssh/config entry
 SERVER_HOST = "backup-server"
 
 HOSTNAME = socket.gethostname()
-USERNAME = os.getenv("USER")
+USERNAME = os.environ["USER"]
 BACKUP_PREFIX = f"backup-home-{USERNAME}-{HOSTNAME}"
-GPG_RECIPIENT = os.getenv("GPG_RECIPIENT")
+
+# Use the ssb key ID from the output of `gpg --list-secret-keys --keyid-format=long`
+GPG_RECIPIENT = os.environ["GPG_RECIPIENT"]
 
 def notify(title: str, body: str, urgency: str = "normal"):
 
@@ -33,6 +35,7 @@ def notify(title: str, body: str, urgency: str = "normal"):
     else:
         icon = "synology-cloud-station-backup"
 
+    # See /usr/local/bin/journalctl-notify
     print("NOTIFY", json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}))
 
 def cleanup() -> None:
@@ -78,7 +81,6 @@ def encrypt(filepath: str) -> str:
 
     print(f"Encrypting {filepath} ...")
 
-    # Use the ssb key ID from the output of `gpg --list-secret-keys --keyid-format=long`
     run(["/usr/bin/gpg",
          "--recipient", GPG_RECIPIENT,
          "--cipher-algo", "AES256",

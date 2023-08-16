@@ -9,9 +9,8 @@ LOCK_DIR=/tmp/.try-to-fix-low-on-disk-space.lock
 # Creating a directory is an atomic operation,
 # this is why we use it as a mutex to prevent
 # multiple instances of this script to run.
-if ! mkdir -- "$LOCK_DIR"
-then
-    exit 0
+if ! mkdir -- "$LOCK_DIR"; then
+	exit 0
 fi
 
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
@@ -25,6 +24,7 @@ rm -rf /home/*/.cache/yay
 rm -rf /home/*/.cache/firefox
 rm -rf /home/*/.cache/chromium
 rm -rf /home/*/.cache/pip
+rm -rf /home/*/.cache/go-build
 
 # Balance btrfs
 btrfs balance start -dusage=0 /
