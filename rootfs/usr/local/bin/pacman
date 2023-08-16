@@ -1,33 +1,30 @@
 #!/bin/bash
 
-# If not trying to install packages, don't show warning and directely exec pacman
+# If not trying to install packages, don't show warning and directly exec pacman
 # Exception made for COMING_FROM_YAY which is just here to prevent warning duplicate
-if [ "$COMING_FROM_YAY" = "1" ] || [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]]
-then
-    exec /usr/bin/pacman "$@"
-    exit 1
+if [ "$COMING_FROM_YAY" = "1" ] || [ "$#" -lt 2 ] || [[ "$1" != -S* ]] || [[ "$1" = -Ss* ]]; then
+	exec /usr/local/bin/proxify /usr/bin/pacman "$@"
+	exit 1
 fi
 
-# To differenciate between a residual db.lock and a systemd
+# To differentiate between a residual db.lock and a systemd
 # service running pacman in the background
-if pgrep -f /usr/bin/pacman &>/dev/null
-then
-    echo
-    echo -e "\e[31mWAIT FOR PACMAN TO COMPLETE\e[0m"
-    echo
-    echo "Refusing to run because pacman is already running."
-    exit 1
+if pgrep -f /usr/bin/pacman &>/dev/null; then
+	echo
+	echo -e "\e[31mWAIT FOR PACMAN TO COMPLETE\e[0m"
+	echo
+	echo "Refusing to run because pacman is already running."
+	exit 1
 fi
 
-if /usr/bin/pacman -Qu &> /dev/null
-then
-    echo
-    echo -e "\e[31mUPGRADE YOUR SYSTEM FIRST\e[0m"
-    echo
-    echo "Refusing to run because a system upgrade is available."
-    echo "Installing a new package could lead to partial upgrade and break your system."
-    echo "Run 'pacman -Syu' first."
-    exit 1
+if /usr/bin/pacman -Qu &>/dev/null; then
+	echo
+	echo -e "\e[31mUPGRADE YOUR SYSTEM FIRST\e[0m"
+	echo
+	echo "Refusing to run because a system upgrade is available."
+	echo "Installing a new package could lead to partial upgrade and break your system."
+	echo "Run 'pacman -Syu' first."
+	exit 1
 fi
 
 echo
@@ -37,11 +34,10 @@ echo "Please consider using Docker containers instead to keep your system clean.
 
 read -p "Are you sure you want to install those packages ? [y/N] " -r answer
 
-if [ "$answer" != "${answer#[Yy]}" ]
-then
-    echo
-    /usr/bin/pacman "$@" && echo -e "\n\e[31mDon't forget to update your Arch install script\e[0m"
+if [ "$answer" != "${answer#[Yy]}" ]; then
+	echo
+	/usr/local/bin/proxify /usr/bin/pacman "$@" && echo -e "\n\e[31mDon't forget to update your Arch install script\e[0m"
 else
-    echo
-    echo "Good choice ;)"
+	echo
+	echo "Good choice ;)"
 fi
