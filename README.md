@@ -51,7 +51,7 @@ System resilience:
 
 This setup uses desktop notifications extensively, I think this is a good way of monitoring your PC.
 
-I want to know what's going at all times, if something fails I want to be aware of it as soon as possible so I can fix it.
+I want to know what's going on at all times, if something fails I want to be aware of it as soon as possible in order to fix it.
 
 Here's a sample of notifications you might get if you use this setup:
 
