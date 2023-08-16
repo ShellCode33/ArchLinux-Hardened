@@ -27,6 +27,7 @@ def check_world_writable(top_folder: str, dangerous_files_detected: List[str]):
     if top_folder == "/":
         directories.remove("proc")
         directories.remove("sys")
+        directories.remove(".snapshots")
 
     for file in directories:
         fullpath = os.path.join(top_folder, file)
