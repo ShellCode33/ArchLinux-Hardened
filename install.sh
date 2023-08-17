@@ -143,6 +143,7 @@ mount /dev/mapper/archlinux /mnt
 btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
 btrfs subvolume create /mnt/@swap
+btrfs subvolume create /mnt/@snapshots
 btrfs subvolume create /mnt/@libvirt
 btrfs subvolume create /mnt/@docker
 btrfs subvolume create /mnt/@cache-pacman-pkgs
@@ -163,6 +164,7 @@ mount -o subvol=@,$mount_opt /dev/mapper/archlinux /mnt
 mount --mkdir -o umask=0077 "${part_boot}" /mnt/efi
 mount --mkdir -o subvol=@home,$mount_opt /dev/mapper/archlinux /mnt/home
 mount --mkdir -o subvol=@swap,$mount_opt /dev/mapper/archlinux /mnt/.swap
+mount --mkdir -o subvol=@snapshots,umask=0077,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
 mount --mkdir -o subvol=@var,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var
 mount --mkdir -o subvol=@var-log,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/log
 mount --mkdir -o subvol=@libvirt,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/lib/libvirt
