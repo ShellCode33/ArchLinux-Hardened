@@ -17,11 +17,11 @@ space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
 echo "NOTIFY {\"urgency\": \"critical\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Starting to take action...\\nSpace left on device: $space_left\"}"
 
 # Agressively cleaning pacman cache
-pacman -Scc
+pacman --noconfirm -Scc
 
 # Clean cache from users' home
 rm -rf /home/*/.cache/yay
-rm -rf /home/*/.cache/firefox
+rm -rf /home/*/.cache/mozilla/firefox
 rm -rf /home/*/.cache/chromium
 rm -rf /home/*/.cache/pip
 rm -rf /home/*/.cache/go-build
