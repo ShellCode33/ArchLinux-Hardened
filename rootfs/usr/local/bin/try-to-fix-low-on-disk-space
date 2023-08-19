@@ -30,6 +30,7 @@ rm -rf /home/*/.cache/debuginfod_client
 # Balance btrfs
 btrfs balance start -dusage=0 /
 btrfs balance start -dusage=50 /
+btrfs subvolume sync /
 sync
 
 # Inform the admin what space is left after the cleanup
