@@ -1,8 +1,8 @@
 [Unit]
-Description=Run should-reboot-check.service hourly
+Description=Run should-reboot-check.service daily
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=daily
 Persistent=true
 
 [Install]
