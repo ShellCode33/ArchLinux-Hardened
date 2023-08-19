@@ -1,21 +1,10 @@
 #!/bin/bash
+
 #
-# Arch Linux installation
+# ArchLinux Hardened installation script.
 #
 # Heavily inspired by https://github.com/maximbaz/dotfiles/blob/master/install.sh
 #
-# Before you run this script from your Arch ISO:
-#
-# - Set boot mode to UEFI, disable Legacy mode entirely.
-# - Temporarily disable Secure Boot.
-# - Make sure a strong UEFI administrator password is set.
-# - Delete preloaded OEM keys for Secure Boot, allow custom ones.
-#
-# Run installation:
-#
-# - Connect to wifi via: `# iwctl station wlan0 connect WIFI-NETWORK`
-# - Run: `# git clone https://github.com/ShellCode33/TiredOfLinuxSetup`
-# - Run: `# bash install_archlinux.sh`
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -26,7 +15,7 @@ exec 1> >(tee "stdout.log")
 exec 2> >(tee "stderr.log" >&2)
 
 # Dialog
-BACKTITLE="Arch Linux installation"
+BACKTITLE="ArchLinux Hardened Installation"
 
 on_error() {
 	ret=$?
@@ -144,6 +133,7 @@ btrfs subvolume create /mnt/@
 btrfs subvolume create /mnt/@home
 btrfs subvolume create /mnt/@swap
 btrfs subvolume create /mnt/@snapshots
+btrfs subvolume create /mnt/@home-snapshots
 btrfs subvolume create /mnt/@libvirt
 btrfs subvolume create /mnt/@docker
 btrfs subvolume create /mnt/@cache-pacman-pkgs
@@ -157,6 +147,7 @@ umount /mnt
 # https://en.opensuse.org/SDB:BTRFS
 # https://wiki.debian.org/Btrfs
 # https://wiki.archlinux.org/title/btrfs
+# https://github.com/archlinux/archinstall/issues/781
 #
 
 mount_opt="defaults,noatime,nodiratime,compress=zstd,space_cache=v2"
@@ -164,13 +155,20 @@ mount -o subvol=@,$mount_opt /dev/mapper/archlinux /mnt
 mount --mkdir -o umask=0077 "${part_boot}" /mnt/efi
 mount --mkdir -o subvol=@home,$mount_opt /dev/mapper/archlinux /mnt/home
 mount --mkdir -o subvol=@swap,$mount_opt /dev/mapper/archlinux /mnt/.swap
-mount --mkdir -o subvol=@snapshots,umask=0077,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
-mount --mkdir -o subvol=@var,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var
-mount --mkdir -o subvol=@var-log,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/log
-mount --mkdir -o subvol=@libvirt,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/lib/libvirt
-mount --mkdir -o subvol=@docker,$mount_opt,nodatacow /dev/mapper/archlinux /mnt/var/lib/docker # I feel like using the btrfs storage driver of Docker is not safe yet (nocow for now)
+mount --mkdir -o subvol=@snapshots,$mount_opt /dev/mapper/archlinux /mnt/.snapshots
+mount --mkdir -o subvol=@home-snapshots,$mount_opt /dev/mapper/archlinux /mnt/home/.snapshots
 
-# Not worth snapshoting, creating subvolumes for them so that they're not included
+# Copy-on-Write is no good for big files that are written multiple times.
+# This includes: logs, containers, virtual machines, databases, etc.
+# They usually lie in /var, therefore CoW will be disabled for everything in /var
+# Note that currently btrfs does not support the nodatacow mount option.
+mount --mkdir -o subvol=@var,$mount_opt /dev/mapper/archlinux /mnt/var
+chattr +C /mnt/var # Disable Copy-on-Write for /var
+mount --mkdir -o subvol=@var-log,$mount_opt /dev/mapper/archlinux /mnt/var/log
+mount --mkdir -o subvol=@libvirt,$mount_opt /dev/mapper/archlinux /mnt/var/lib/libvirt
+mount --mkdir -o subvol=@docker,$mount_opt /dev/mapper/archlinux /mnt/var/lib/docker # I feel like using the btrfs storage driver of Docker is not safe yet
+
+# Not worth snapshotting, creating subvolumes for them so that they're not included
 # Be careful not to break a potential future rollback of /@ !!
 mount --mkdir -o subvol=@cache-pacman-pkgs,$mount_opt /dev/mapper/archlinux /mnt/var/cache/pacman/pkg
 mount --mkdir -o subvol=@var-tmp,$mount_opt /dev/mapper/archlinux /mnt/var/tmp
@@ -237,6 +235,10 @@ arch-chroot /mnt locale-gen
 
 genfstab -U /mnt >>/mnt/etc/fstab
 
+# For a smoother transition between Plymouth and Sway
+touch /mnt/etc/hushlogins
+sed -i 's/HUSHLOGIN_FILE.*/#\0/g' /etc/login.defs
+
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
 for group in wheel audit libvirt; do
@@ -244,8 +246,6 @@ for group in wheel audit libvirt; do
 	arch-chroot /mnt gpasswd -a "$user" "$group"
 done
 echo "$user:$password" | arch-chroot /mnt chpasswd
-touch /mnt/etc/hushlogins # for a smoother transition between Plymouth and Sway
-sed -i 's/HUSHLOGIN_FILE.*/#\0/g' /etc/login.defs
 
 # Temporarly give sudo NOPASSWD rights to user for yay
 echo "$user ALL=(ALL) NOPASSWD:ALL" >>"/mnt/etc/sudoers"
@@ -309,6 +309,8 @@ arch-chroot /mnt systemctl enable auditd-notify
 arch-chroot /mnt systemctl enable local-forwarding-proxy
 
 # Configure systemd timers
+arch-chroot /mnt systemctl enable snapper-timeline.timer
+arch-chroot /mnt systemctl enable snapper-cleanup.timer
 arch-chroot /mnt systemctl enable auditor.timer
 arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
 arch-chroot /mnt systemctl enable btrfs-balance.timer
