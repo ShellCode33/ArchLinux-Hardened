@@ -72,7 +72,7 @@ def main():
         notif_body += "The following programs are using outdated libraries, " \
                       "you should restart them or reboot your system:\n\n"
 
-        notif_body += "\n".join(programs_using_outdated_libraries)
+        notif_body += "\n".join(sorted(programs_using_outdated_libraries))
 
     if notif_body:
         notify("CONSIDER REBOOTING", "\n" + notif_body)
