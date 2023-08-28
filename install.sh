@@ -295,6 +295,7 @@ arch-chroot /mnt chmod 700 /boot
 arch-chroot /mnt passwd -dl root
 
 # Configure systemd services
+arch-chroot /mnt systemctl enable systemd-timesyncd
 arch-chroot /mnt systemctl enable getty@tty1
 arch-chroot /mnt systemctl enable dbus-broker
 arch-chroot /mnt systemctl enable dhcpcd
