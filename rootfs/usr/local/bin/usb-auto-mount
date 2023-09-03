@@ -1,0 +1,206 @@
+#!/usr/bin/python3 -u
+
+import os
+import sys
+import json
+from subprocess import DEVNULL, PIPE, CalledProcessError, run
+from typing import Dict, Optional, Set
+
+def notify(body: str, urgency: str = "normal") -> None:
+
+    if urgency == "critical":
+        icon = "computer-fail"
+    else:
+        icon = "drive-removable-media-usb"
+
+    # See /usr/local/bin/journalctl-notify
+    print("NOTIFY", json.dumps({"title": "USB DEVICE MANAGER", "body": body, "urgency": urgency, "icon": icon}))
+
+def mount_encrypted(encrypted_part_uuid: str, luks_key_path: str) -> None:
+    try:
+        run(["/usr/bin/cryptsetup",
+             "open",
+             f"/dev/disk/by-uuid/{encrypted_part_uuid}",
+             encrypted_part_uuid,
+             "--key-file", luks_key_path],
+            stdout=DEVNULL, stderr=PIPE, check=True)
+    except CalledProcessError as cpe:
+        error_str = cpe.stderr.decode()
+
+        # Allow already exists error
+        if "already exists" not in error_str:
+            notify(f"Command 'cryptsetup open' failed with:\n\n" + error_str, urgency="critical")
+            raise
+
+    try:
+        run(["/usr/bin/mount",
+             "--mkdir",
+             f"/dev/mapper/{encrypted_part_uuid}"],
+            stdout=DEVNULL, stderr=PIPE, check=True)
+    except CalledProcessError as cpe:
+        error_str = cpe.stderr.decode()
+        notify(f"Command 'mount /dev/mapper/{encrypted_part_uuid}' failed with:\n\n" + error_str, urgency="critical")
+        raise
+
+def mount_not_encrypted(partition_uuid: str) -> None:
+    try:
+        run(["/usr/bin/mount", "--mkdir", f"UUID={partition_uuid}"],
+            stdout=DEVNULL, stderr=PIPE, check=True)
+    except CalledProcessError as cpe:
+        error_str = cpe.stderr.decode()
+
+        if "can't find in /etc/fstab" in error_str:
+            print("Device not in /etc/fstab, ignoring it")
+        else:
+            notify(f"Command 'mount UUID={partition_uuid}' failed with:\n\n" + error_str, urgency="critical")
+            raise
+
+def parse_device_variables(block_device: str) -> Dict[str, str]:
+    device_variables = {}
+
+    try:
+        proc = run(["udevadm", "info", "--query=env", "--export", f"/dev/{block_device}"],
+                check=True, stdout=PIPE, stderr=PIPE)
+    except CalledProcessError as cpe:
+        error_str = cpe.stderr.decode()
+        notify(f"Command 'udevadm info' failed with:\n\n" + error_str, urgency="critical")
+        raise
+    
+    for line in proc.stdout.decode().splitlines():
+        key, value = line.split("=", maxsplit=1)
+
+        if value[0] == "'" and value[-1] == "'":
+            value = value[1:-1]
+
+        device_variables[key] = value
+
+    return device_variables
+
+def find_luks_key_path(partition_uuid: str) -> Optional[str]:
+    with open("/etc/crypttab", "r") as stream:
+        for line in stream:
+            line = line.strip()
+
+            # Ignore comments and empty lines
+            if not line or line[0] == "#":
+                continue
+
+            tokens = line.split()
+            uuid = tokens[1]
+            luks_key_path = tokens[2]
+
+            if not uuid.startswith("UUID="):
+                continue
+
+            if uuid.endswith(partition_uuid):
+                return luks_key_path
+
+    return None
+
+def find_mount_point(block_device: str) -> Optional[str]:
+    try:
+        proc = run(["/usr/bin/lsblk",
+                    "--noheadings",
+                    "--list",
+                    "--output=name,mountpoints",
+                    f"/dev/{block_device}"],
+                   stdout=PIPE, stderr=PIPE, check=True)
+
+    except CalledProcessError:
+        return None
+
+    lsblk_output = proc.stdout.decode()
+
+    for line in lsblk_output.splitlines():
+        tokens = line.split(maxsplit=1)
+
+        if len(tokens) == 2:
+            return tokens[1]
+
+    return None
+
+def handle_auto_mount(block_device: str) -> None:
+
+    device_variables = parse_device_variables(block_device)
+    partition_uuid = device_variables["ID_FS_UUID"]
+    luks_key_path = find_luks_key_path(partition_uuid)
+
+    if luks_key_path:
+        mount_encrypted(partition_uuid, luks_key_path)
+    else:
+        mount_not_encrypted(partition_uuid)
+
+    mount_point = find_mount_point(block_device)
+
+    if mount_point:
+        notify(f"Device /dev/{block_device} mounted successfully to {mount_point}")
+
+def clean_cryptsetup_leftovers() -> Set[str]:
+    """
+    If hot-pluggable drives are removed from the computer, there will be
+    left over entries in /dev/mapper this function aims to remove entries
+    that do not match a physical device anymore.
+
+    Returns a set of removed devices.
+    """
+    removed_devices = set()
+    mapped_devices = os.listdir("/dev/mapper/")
+
+    for device in mapped_devices:
+        proc = run(["/usr/bin/cryptsetup", "status", device], stdout=PIPE)
+        stdout = proc.stdout.decode()
+
+        for line in stdout.splitlines():
+            line = line.strip()
+            line = line.replace(" ", "")
+            
+            if line == "device:(null)":
+                # Leftover detected, closing it
+                run(["/usr/bin/cryptsetup", "close", device])
+                print(f"Removed leftover /dev/mapper/{device}")
+                removed_devices.add(f"/dev/mapper/{device}")
+
+    return removed_devices
+
+def cleanup_mounts(block_device: str) -> None:
+    removed_luks_devices = clean_cryptsetup_leftovers()
+
+    with open("/etc/mtab", "r") as stream:
+        for line in stream:
+            tokens = line.split()
+
+            if len(tokens) < 2:
+                continue
+
+            device = tokens[0]
+            mount_point = tokens[1]
+
+            if device in removed_luks_devices or device == block_device:
+                run(["/usr/bin/umount", "--lazy", mount_point])
+                try:
+                    os.rmdir(mount_point)
+                except OSError as ose:
+                    print(str(ose))
+
+def main():
+
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} [ACTION] [BLOCK DEVICE]")
+        sys.exit(1)
+
+    action = sys.argv[1]
+    block_device = sys.argv[2]
+
+    print(f"{action} device {block_device}")
+
+    if action == "add":
+        handle_auto_mount(block_device)
+
+    elif action == "remove":
+        cleanup_mounts(block_device)
+
+    else:
+        raise ValueError("Unknown action type")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,2 @@
+KERNEL=="sd[a-z][0-9]", SUBSYSTEMS=="usb", ACTION=="add", RUN+="/usr/bin/systemctl start usb-auto-mount@%k.service"
+KERNEL=="sd[a-z][0-9]", SUBSYSTEMS=="usb", ACTION=="remove", RUN+="/usr/bin/systemctl stop usb-auto-mount@%k.service"

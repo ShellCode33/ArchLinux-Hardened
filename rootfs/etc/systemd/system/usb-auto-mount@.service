@@ -1,0 +1,8 @@
+[Unit]
+Description=Auto-mount device %i
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/local/bin/usb-auto-mount add %i
+ExecStop=/usr/local/bin/usb-auto-mount remove %i
