@@ -18,6 +18,7 @@ vulkan-intel
 btrfs-progs
 gparted
 gptfdisk
+dosfstools # create FAT partitions
 
 # Secure boot
 efibootmgr
