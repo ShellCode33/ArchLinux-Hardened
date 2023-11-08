@@ -59,6 +59,7 @@ sway
 swaylock
 swayidle
 swaybg
+kanshi # Monitors management
 xdg-desktop-portal-wlr # Enable screen sharing capabilites
 xdg-desktop-portal-gtk # File chooser and others
 flameshot # Take screenshots
@@ -98,7 +99,7 @@ papirus-icon-theme
 neovim
 git
 lazygit
-rust
+rustup
 clang
 ipython
 python-pip
@@ -129,7 +130,7 @@ bat
 most
 p7zip
 unzip
-debootstrap # see backups/ENROLL_USB_DEVICE.md
+debootstrap # see docs/HOW_TO_SECURE_USB_DEVICE.md
 signal-desktop
 usbutils
 wtype
