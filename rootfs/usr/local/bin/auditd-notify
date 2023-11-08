@@ -14,7 +14,7 @@ import os
 import json
 import re
 import time
-from subprocess import run
+from traceback import format_exc
 from typing import Dict, Iterable, Tuple
 
 DEFAULT_SLEEP = 1
@@ -154,6 +154,12 @@ def parse_auditd_entry(event: str) -> Dict:
             continue
 
         key, value = tokens
+        key = key.strip()
+        value = value.strip()
+
+        # Key or value is empty, ignoring it
+        if not key or not value:
+            continue
 
         # Clean value if necessary
         if (value[0] == '"' and value[-1] == '"') or (value[0] == "'" and value[-1] == "'"):
@@ -239,7 +245,7 @@ def main():
             parsed_event = parse_auditd_entry(event)
             notify_if_relevant(parsed_event)
     except Exception as exc:
-        notify("AUDITD LOGS MONITORING FAILURE", str(exc))
+        notify("AUDITD LOGS MONITORING FAILURE", format_exc())
         sys.exit(1)
 
 if __name__ == '__main__':
