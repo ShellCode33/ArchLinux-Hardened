@@ -1,5 +1,4 @@
 #!/usr/bin/python3 -u
-# coding: utf-8
 
 """
 Script that monitors auditd logs to send relevant Desktop notifications.
@@ -33,6 +32,7 @@ ETC_SHADOW_WHITELIST = (
     "/usr/lib/systemd/systemd",
     "/usr/bin/systemd-tmpfiles",
     "/usr/lib/polkit-1/polkit-agent-helper-1",
+    "/usr/bin/firejail",
 )
 
 def follow_auditd_events() -> Iterable:

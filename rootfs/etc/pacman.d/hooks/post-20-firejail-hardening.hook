@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = firejail
+
+[Action]
+Depends = coreutils
+Depends = bash
+When = PostTransaction
+Exec = /usr/bin/sh -c "chown root:firejail /usr/bin/firejail && chmod 4750 /usr/bin/firejail"
+Description = Setting /usr/bin/firejail owner to "root:firejail" and mode "4750"

@@ -138,7 +138,10 @@ def main() -> None:
         print("Internet seems unreachable, but it's ok, let's start Firefox anyway")
 
     # Run the real Firefox
-    os.execv("/usr/bin/firefox", ["firefox"])
+    if os.path.exists("/usr/bin/firejail"):
+        os.execv("/usr/bin/firejail", ["firejail", "/usr/bin/firefox"])
+    else:
+        os.execv("/usr/bin/firefox", ["firefox"])
 
 if __name__ == "__main__":
     main()

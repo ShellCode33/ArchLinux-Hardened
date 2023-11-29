@@ -241,7 +241,7 @@ sed -i 's/HUSHLOGIN_FILE.*/#\0/g' /etc/login.defs
 
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
-for group in wheel audit libvirt; do
+for group in wheel audit libvirt firejail; do
 	arch-chroot /mnt groupadd -rf "$group"
 	arch-chroot /mnt gpasswd -a "$user" "$group"
 done
@@ -290,9 +290,12 @@ arch-chroot /mnt mkinitcpio -p linux-hardened
 echo 'KERNEL=linux-hardened' >/mnt/etc/arch-secure-boot/config
 arch-chroot /mnt arch-secure-boot initial-setup
 
-# Hardenning
+# Hardening
 arch-chroot /mnt chmod 700 /boot
 arch-chroot /mnt passwd -dl root
+
+# Setup firejail symlinks
+arch-chroot /mnt /usr/bin/firecfg
 
 # Configure systemd services
 arch-chroot /mnt systemctl enable systemd-timesyncd
