@@ -13,6 +13,7 @@ mkinitcpio
 # Hardware acceleration
 mesa
 vulkan-intel
+intel-media-driver # iGPU video acceleration
 
 # Filesystem tools
 btrfs-progs
@@ -37,6 +38,7 @@ glider # used for the network opt-in security measure
 
 # Security
 apparmor
+firejail
 polkit
 keepassxc
 restic # backup

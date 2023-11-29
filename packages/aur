@@ -3,9 +3,6 @@
 # Secure boot utils
 arch-secure-boot
 
-# Apparmor profiles
-apparmor.d-git
-
 # You can choose your own theme from there: https://github.com/adi1090x/plymouth-themes
 plymouth
 plymouth-theme-colorful-loop-git
