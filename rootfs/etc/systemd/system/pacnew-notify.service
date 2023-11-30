@@ -1,6 +1,0 @@
-[Unit]
-Description=Send desktop notification if configuration files that require reviewing are found
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'files="$(find /etc -type f -name "*.pacnew" -o -name "*.pacsave")"; [[ -z "$files" ]] || echo "NOTIFY critical dialog-warning \'FOUND PACNEW FILES\' \'Please take action:\n$files\'"'

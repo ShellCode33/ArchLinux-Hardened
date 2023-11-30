@@ -1,0 +1,60 @@
+#!/usr/bin/python3 -u
+
+import json
+import os
+import sys
+from subprocess import run
+
+
+def notify(title: str, body: str, icon: str | None = None) -> None:
+    content = {
+        "title": title,
+        "body": body,
+        "urgency": "normal",
+    }
+
+    if icon:
+        content["icon"] = icon
+
+    # See /usr/local/bin/journalctl-notify
+    print("NOTIFY", json.dumps(content))
+
+
+def check_residual_files() -> None:
+    files_to_review: list[str] = []
+    for root, _, files in os.walk("/etc"):
+        for file in files:
+            if file.endswith((".pacnew", ".pacsave")):
+                files_to_review.append(f"{root}/{file}")
+
+    if files_to_review:
+        notify(
+            "PACMAN REVIEW REQUIRED",
+            "The following files require your attention:\n\n"
+            + "\n".join(files_to_review),
+        )
+
+
+def check_update_available() -> None:
+    proc = run(["/usr/bin/pacman", "-Qu"])
+
+    if proc.returncode == 0:
+        notify(
+            "SYSTEM UPDATE AVAILABLE",
+            "Please consider upgrading it",
+            icon="mintbackup",
+        )
+    elif proc.returncode == 1:
+        "No update available"
+    else:
+        # Something went wrong
+        sys.exit(1)
+
+
+def main() -> None:
+    check_update_available()
+    check_residual_files()
+
+
+if __name__ == "__main__":
+    main()

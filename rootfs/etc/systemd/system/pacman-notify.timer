@@ -1,8 +1,8 @@
 [Unit]
-Description=Run pacman-notify.service every hour
+Description=Run pacman-notify.service every day
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=daily
 Persistent=true
 
 [Install]
