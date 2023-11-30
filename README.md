@@ -2,7 +2,7 @@
 
 This repository contains my ArchLinux setup which focuses on desktop security.
 
-Beside security, my setup also aims to use all the bleeding edge and most powerful software we currently have available, most notably:
+Beside security, my setup also aims to use all the bleeding edge and state of the art software we currently have available, most notably:
 
 - Btrfs : [copy-on-write](https://en.wikipedia.org/wiki/Copy-on-write) filesystem with snapshot support
 - Wayland : because X11 is old, slow, and insecure
@@ -15,7 +15,7 @@ Therefore this setup is not recommended if you don't have good GNU/Linux knowled
 
 Even though I use it as my daily driver, this is still work in progress.
 
-Some work is yet to be done regarding AppArmor and btrfs snapshots.
+Some work is yet to be done regarding btrfs snapshots.
 
 ## Highlights
 
@@ -27,15 +27,16 @@ Physical tampering hardening:
 
 Exploit mitigation:
 
-- ArchLinux's hardened kernel
+- ArchLinux's hardened kernel (a fork of GraphenOS kernel)
 - Kernel's lockdown mode set to "integrity"
-- AppArmor
+- Firejail + AppArmor (see [FIREJAIL.md](docs/FIREJAIL.md) for the why)
 
 Network hardening:
 
 - Reverse Path Filtering set to strict
 - ICMP redirects disabled
-- Strict firewalling rules (default output policy is `drop`, see [NETWORKING.md](https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md))
+- The hardened kernel has very strong defaults regarding network security
+- Strict firewalling rules (drop everything by default, see [NETWORKING.md](https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md))
 
 System monitoring:
 
@@ -47,7 +48,6 @@ System resilience:
 - LTS kernel fallback from the BIOS to fix a broken system
 - Automated encrypted backups uploaded to a remote server (manual configuration required)
 - Automated encrypted incremental backups to an external USB drive (manual configuration required)
-
 
 This setup uses desktop notifications extensively, I think this is a good way of monitoring your PC.
 
@@ -73,7 +73,7 @@ that allows anyone to sign a UEFI firmware. So basically if you decide to use Mi
 anyone who manages to get its UEFI firmware signed will be able to bypass your secure boot.
 I don't want that. And I don't trust Microsoft. So I decided to enroll my own keys instead.
 
-⚠  Replacing Microsoft's keys will probably break your Windows boot if you have one, this ArchLinux setup has not been tested with a Windows dual boot, use at your own risk. In any case, [backing up those keys](https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot#Backing_up_current_variables) won't hurt (note that some BIOS allow you to reset keys to their factory default, meaning Microsoft's keys).
+⚠ Replacing Microsoft's keys will probably break your Windows boot if you have one, this ArchLinux setup has not been tested with a Windows dual boot, use at your own risk. In any case, [backing up those keys](https://wiki.archlinux.org/title/Unified_Extensible_Firmware_Interface/Secure_Boot#Backing_up_current_variables) won't hurt (note that some BIOS allow you to reset keys to their factory default, meaning Microsoft's keys).
 
 - Set an admin password to restrict the access to your BIOS settings (add it to your password manager)
 - Remove all the cryptographic keys from your BIOS and enter the "setup mode" (some BIOS won't let you enter the setup mode if the SB is enabled)
