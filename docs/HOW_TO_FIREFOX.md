@@ -12,4 +12,4 @@ As always, a line has to be drawn between security and usability. If you want a 
 
 Perform `CTRL + i` on the website you want to stay logged into after a restart of Firefox.
 
-The look for "Set cookies" and untick "Use Default". Make sure the radio button is set to "Allow".
+Then look for "Set cookies" and untick "Use Default". Make sure the radio button is set to "Allow".

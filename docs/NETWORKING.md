@@ -12,7 +12,7 @@ I obviously want a usable setup, and being able to reach the internet is kind of
 
 ## How
 
-The idea is that by default nothing has access to the internet (thanks to the output `drop` policy), but any application routing its traffic through the local proxy will. This is achieved by matching the `skuid` nftables metadata. The `skuid` matches the `http` user, which is an ArchLinux default.
+The idea is that by default nothing has access to the internet (thanks to the output `drop` policy), but any application routing its traffic through the local proxy will. This is achieved by matching the `skgid` nftables metadata. The `skgid` matches the `http` group, which is an ArchLinux default group.
 
 In order for you to instruct applications to route their traffic through the proxy, a [wrapper script called proxify](https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/rootfs/usr/local/bin/proxify) has been written.
 
