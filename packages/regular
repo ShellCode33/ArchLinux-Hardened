@@ -108,6 +108,7 @@ ipython
 python-pip
 man-db
 man-pages
+npm # for nvim plugins
 
 # Debugging
 gdb
