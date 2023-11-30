@@ -294,8 +294,9 @@ arch-chroot /mnt arch-secure-boot initial-setup
 arch-chroot /mnt chmod 700 /boot
 arch-chroot /mnt passwd -dl root
 
-# Setup firejail symlinks
+# Setup firejail
 arch-chroot /mnt /usr/bin/firecfg
+echo "$user" >/mnt/etc/firejail/firejail.users
 
 # Configure systemd services
 arch-chroot /mnt systemctl enable systemd-timesyncd
@@ -320,7 +321,6 @@ arch-chroot /mnt systemctl enable btrfs-scrub@-.timer
 arch-chroot /mnt systemctl enable btrfs-balance.timer
 arch-chroot /mnt systemctl enable pacman-sync.timer
 arch-chroot /mnt systemctl enable pacman-notify.timer
-arch-chroot /mnt systemctl enable pacnew-notify.timer
 arch-chroot /mnt systemctl enable should-reboot-check.timer
 
 # Configure systemd user services

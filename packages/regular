@@ -85,6 +85,7 @@ pipewire-audio
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
+wireplumber
 openssh
 dbus-broker # Improved DBUS implementation (performance and security)
 
