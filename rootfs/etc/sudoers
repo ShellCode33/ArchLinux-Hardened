@@ -1,3 +1,9 @@
+Defaults env_reset
+Defaults secure_path="/usr/local/bin:/usr/bin"
+
+# Fixes CVE-2005-4890, see https://www.errno.fr/TTYPushback.html
+Defaults use_pty
+
 Defaults passwd_timeout=0
 Defaults passprompt="[sudo] password for %p: "
 Defaults insults
