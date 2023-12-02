@@ -6,10 +6,12 @@ import json
 import sys
 from asyncio.subprocess import DEVNULL, PIPE, Process
 
-# Sleeping a little bit is very important to prevent reaching the TasksMax limit of systemd.
+# Sleeping a little bit is very important to prevent reaching
+# the TasksMax limit of systemd.
 # See: https://unix.stackexchange.com/questions/253903/creating-threads-fails-with-resource-temporarily-unavailable-with-4-3-kernel
-# It can happen that you have many logs to report which could cause this script to spawn many notify-send processes and therefore
-# reaching the TasksMax limit. It will basically crash.
+# It can happen that you have many logs to report which could cause this script to
+# spawn many notify-send processes and therefore reaching the TasksMax limit.
+# It will basically crash.
 SLEEP_BETWEEN_NOTIFY = 0.1
 
 
@@ -19,9 +21,25 @@ async def is_running(proc: Process) -> bool:
     return proc.returncode is None
 
 
+async def send_notify(
+    title: str,
+    body: str,
+    urgency: str,
+    icon: str | None = None,
+) -> None:
+    params = ["--urgency", urgency, title, body]
+
+    if icon:
+        params += ["--icon", icon]
+
+    await asyncio.create_subprocess_exec("/usr/bin/notify-send", *params)
+    await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
+
+
 async def try_process_notify(line: bytes) -> None:
     begin = line.find(b"NOTIFY")
 
+    # Early return for a line which is not our responsibility to parse
     if begin == -1:
         return
 
@@ -37,30 +55,14 @@ async def try_process_notify(line: bytes) -> None:
         urgency = log["urgency"]
         title = log["title"]
         body = log["body"]
-        await asyncio.create_subprocess_exec(
-            "/usr/bin/notify-send",
-            "--urgency",
-            urgency,
-            title,
-            body,
-        )
-        await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
+        await send_notify(title, body, urgency)
 
     elif len(log) == 4:
         urgency = log["urgency"]
         icon = log["icon"]
         title = log["title"]
         body = log["body"]
-        await asyncio.create_subprocess_exec(
-            "/usr/bin/notify-send",
-            "--urgency",
-            urgency,
-            "--icon",
-            icon,
-            title,
-            body,
-        )
-        await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
+        await send_notify(title, body, urgency, icon)
 
     else:
         print("Wrong log format:", log)
@@ -68,6 +70,7 @@ async def try_process_notify(line: bytes) -> None:
 
 
 async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
+    # Early return for a line which is not our responsibility to parse
     if line_as_bytes.find(b"FIREWALL REJECTED") == -1:
         return
 
@@ -121,14 +124,48 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
         error = f"unexpected rejected token from the following log:\n{line}"
         raise ValueError(error)
 
-    await asyncio.create_subprocess_exec(
-        "/usr/bin/notify-send",
-        "--urgency",
-        "critical",
-        f"FIREWALL {chain} DENIAL",
-        body,
-    )
-    await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
+    await send_notify(f"FIREWALL {chain} DENIED", body, "critical")
+
+
+async def try_process_systemd_service_failure(line_as_bytes: bytes) -> None:
+    line_begin = line_as_bytes.find(b"systemd[")
+
+    # Early return for a line which is not our responsibility to parse
+    if line_begin == -1:
+        return
+
+    # Skip date and hostname + remove commas
+    line_as_bytes = line_as_bytes[line_begin:].replace(b",", b" ")
+
+    first_colon_index = line_as_bytes.find(b":")
+
+    if first_colon_index == -1:
+        return
+
+    second_colon_index = line_as_bytes.find(b":", first_colon_index + 1)
+
+    if second_colon_index == -1:
+        return
+
+    service_name = line_as_bytes[first_colon_index + 1 : second_colon_index].strip()
+    service_name = service_name.decode()
+    tokens = line_as_bytes[second_colon_index + 1 :].decode().strip().split()
+    variables = {}
+
+    for token in tokens:
+        if "=" in token:
+            key, value = token.split("=")
+            variables[key] = value
+
+    # See man systemd.exec if you want to support more.
+    if ("code=exited" in tokens and "status=0/SUCCESS" not in tokens) or (
+        "code=dumped" in tokens
+    ):
+        await send_notify(
+            "SYSTEMD SERVICE ISSUE",
+            f"{service_name} {variables['code']} with status {variables['status']}",
+            "critical",
+        )
 
 
 async def main() -> None:
@@ -169,25 +206,21 @@ async def main() -> None:
                 try:
                     await try_process_notify(line)
                     await try_process_firewall_rejection(line)
+                    await try_process_systemd_service_failure(line)
                 except Exception as exc:  # noqa: BLE001
-                    await asyncio.create_subprocess_exec(
-                        "/usr/bin/notify-send",
-                        "--urgency",
+                    await send_notify(
                         "critical",
                         "JOURNALCTL NOTIFIER PARSER ERROR",
                         str(exc),
                     )
-                    await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
 
     # This script should never exit, if it does something went wrong, exit with status 1
     print("Error: one of the subprocesses exited")
 
-    await asyncio.create_subprocess_exec(
-        "/usr/bin/notify-send",
-        "--urgency",
+    await send_notify(
         "critical",
         "JOURNALCTL NOTIFIER STOPPED",
-        "One of the journalctl subprocess exited",
+        "One of the journalctl subprocess exited, that should not happen",
     )
     sys.exit(1)
 
