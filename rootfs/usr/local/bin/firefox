@@ -1,12 +1,14 @@
 #!/usr/bin/python3
 
-from io import TextIOWrapper
 import os
-import re
 import os.path
-import requests
-from typing import Dict, List, Optional, Tuple
+import re
+import sys
 from configparser import ConfigParser
+from io import TextIOWrapper
+from typing import Dict, List, Optional, Tuple
+
+import requests
 
 FIREFOX_DIR = os.environ["HOME"] + "/.mozilla/firefox"
 USER_JS_OVERRIDES_PATH = f"{FIREFOX_DIR}/user-overrides.js"
@@ -14,13 +16,13 @@ USER_JS_OVERRIDES_PATH = f"{FIREFOX_DIR}/user-overrides.js"
 USER_JS_URL = "https://raw.githubusercontent.com/arkenfox/user.js/master/user.js"
 USER_PREF_REGEX = r'user_pref\("(?P<pref_key>.+)",\s*"?(?P<pref_value>[^"\)]+)'
 
-def get_profiles() -> List[Tuple[str, str]]:
 
+def get_profiles() -> List[Tuple[str, str]]:
     profiles = []
 
     config = ConfigParser()
     config.read(FIREFOX_DIR + "/profiles.ini")
-    
+
     for section in config.sections():
         if section.startswith("Profile"):
             name = config[section]["Name"]
@@ -29,20 +31,20 @@ def get_profiles() -> List[Tuple[str, str]]:
 
     return profiles
 
+
 def install(profile_path: str, new_user_js_content: str) -> None:
-    
     user_js = f"{profile_path}/user.js"
 
     with open(user_js, "w") as stream:
         stream.write(new_user_js_content)
 
-        with open(USER_JS_OVERRIDES_PATH, "r") as stream_override:
+        with open(USER_JS_OVERRIDES_PATH) as stream_override:
             stream.write("\n\n// ------ OVERRIDES START HERE ------\n\n")
             stream.write(stream_override.read())
 
+
 def clean(profile_path: str) -> None:
-    """
-    Remove all entries from prefs.js that are in user.js regardless of whether they are active or not.
+    """Remove all entries from prefs.js that are in user.js regardless of whether they are active or not.
     They will be set back from user.js next time Firefox starts.
 
     Firefox must be closed for this to work because prefs.js is overwritten on exit.
@@ -56,14 +58,14 @@ def clean(profile_path: str) -> None:
 
     prefs_to_remove = []
 
-    with open(user_js, "r") as stream:
+    with open(user_js) as stream:
         for line in stream:
             match = re.search(USER_PREF_REGEX, line)
 
             if match:
                 prefs_to_remove.append(match.group("pref_key"))
 
-    with open(prefs_js, "r") as stream:
+    with open(prefs_js) as stream:
         prefs_js_content = stream.read()
 
     with open(prefs_js, "w") as stream:
@@ -73,7 +75,11 @@ def clean(profile_path: str) -> None:
             if match and match.group("pref_key") not in prefs_to_remove:
                 stream.write(f"{line}\n")
 
-def _find_proxy_in_stream(stream: TextIOWrapper, scheme: str) -> Tuple[Optional[str], Optional[str]]:
+
+def _find_proxy_in_stream(
+    stream: TextIOWrapper,
+    scheme: str,
+) -> Tuple[Optional[str], Optional[str]]:
     proxy_host = None
     proxy_port = None
 
@@ -91,22 +97,24 @@ def _find_proxy_in_stream(stream: TextIOWrapper, scheme: str) -> Tuple[Optional[
 
     return proxy_host, proxy_port
 
+
 def find_proxies() -> Dict[str, str]:
     proxies = {}
 
     for scheme in ("http", "ssl"):
-        with open(USER_JS_OVERRIDES_PATH, "r") as stream:
+        with open(USER_JS_OVERRIDES_PATH) as stream:
             proxy_host, proxy_port = _find_proxy_in_stream(stream, scheme)
 
             if proxy_host and proxy_port:
                 proxy_str = f"http://{proxy_host}:{proxy_port}"
 
-                if scheme not in proxies: 
+                if scheme not in proxies:
                     proxies[scheme] = proxy_str
                 elif proxies[scheme] != proxy_str:
                     # FIXME: for now we are expecting that the HTTPS proxy points to the HTTP one.
                     #        "network.proxy.share_proxy_settings" should probably be used instead.
-                    raise NotImplementedError("for now we are expecting HTTP(S) proxies to be the same")
+                    error = "for now we are expecting HTTP(S) proxies to be the same"
+                    raise NotImplementedError(error)
 
     return proxies
 
@@ -115,13 +123,15 @@ def main() -> None:
     profiles = get_profiles()
     new_user_js_content = None
 
-    for _, proxy in (find_proxies() | {"": ""}).items(): # Add empty strings for no proxy at all
+    for proxy in (
+        find_proxies() | {"": ""}
+    ).values():  # Add empty strings for no proxy at all
         try:
             print(f"Downloading {USER_JS_URL}")
             new_user_js_content = requests.get(
                 USER_JS_URL,
                 timeout=0.5,
-                proxies={"http": proxy, "https": proxy}
+                proxies={"http": proxy, "https": proxy},
             ).text
             break
         except requests.exceptions.RequestException:
@@ -139,9 +149,10 @@ def main() -> None:
 
     # Run the real Firefox
     if os.path.exists("/usr/bin/firejail"):
-        os.execv("/usr/bin/firejail", ["firejail", "/usr/bin/firefox"])
+        os.execv("/usr/bin/firejail", ["firejail", "/usr/bin/firefox"] + sys.argv[1:])
     else:
-        os.execv("/usr/bin/firefox", ["firefox"])
+        os.execv("/usr/bin/firefox", ["firefox"] + sys.argv[1:])
+
 
 if __name__ == "__main__":
     main()
