@@ -1,0 +1,4 @@
+# For the SSH integration
+noblacklist ${HOME}/.ssh
+ignore private-tmp
+noblacklist /tmp/ssh-*
