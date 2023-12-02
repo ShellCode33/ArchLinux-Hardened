@@ -27,7 +27,7 @@ Physical tampering hardening:
 
 Exploit mitigation:
 
-- ArchLinux's hardened kernel (a fork of GraphenOS kernel)
+- GraphenOS' hardened kernel
 - Kernel's lockdown mode set to "integrity"
 - Firejail + AppArmor (see [FIREJAIL.md](docs/FIREJAIL.md) for the why)
 
@@ -82,7 +82,7 @@ I don't want that. And I don't trust Microsoft. So I decided to enroll my own ke
 Let's go!
 
 ```sh
-$ pacman -S git
+$ pacman -Sy git
 $ git clone https://github.com/ShellCode33/ArchLinux-Hardened
 $ cd ArchLinux-Hardened
 $ ./install.sh
