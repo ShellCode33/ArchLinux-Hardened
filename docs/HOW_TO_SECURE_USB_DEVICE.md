@@ -13,15 +13,15 @@ First, identify the USB device using lsblk, example:
 ```
 $ lsblk
 NAME          MAJ:MIN RM   SIZE RO TYPE  MOUNTPOINTS
-sda             8:0    0 931.5G  0 disk  
+sda             8:0    0 931.5G  0 disk
 ├─sda1          8:1    0   300M  0 part  /efi
-└─sda2          8:2    0 931.2G  0 part  
+└─sda2          8:2    0 931.2G  0 part
   └─cryptroot 254:0    0 931.2G  0 crypt /
-sdb             8:16   1 115.7G  0 disk  
-└─sdb1          8:17   1 115.7G  0 part  
+sdb             8:16   1 115.7G  0 disk
+└─sdb1          8:17   1 115.7G  0 part
 ```
 
-Here we will use the device ``/dev/sdb``.
+Here we will use the device `/dev/sdb`.
 
 WARNING: think twice before running any command or you might lose data !
 
@@ -39,7 +39,6 @@ Remove any FS magic bytes (in case dd randomly created valid ones) otherwise som
 lsblk -plnx size -o name /dev/sdb | sudo xargs -n1 wipefs --all
 ```
 
-
 ## Create partitions
 
 - Partition 1: FAT32 partition which contains a README.txt with contact details in case the USB key is lost
@@ -52,6 +51,7 @@ Create the partition table:
 ```
 sudo sgdisk --clear /dev/sdb --new 1::+64MiB --new 2::+128MiB --typecode 2:ef00 /dev/sdb --new 3::+10GiB --new 4::0
 ```
+
 (You could allocate only 5GiB to the Linux partition, but I'd rather be safe than sorry)
 
 Name the partitions:
@@ -73,6 +73,7 @@ Create the LUKS layouts (LUKS 2 is not properly supported by GRUB yet):
 sudo cryptsetup luksFormat --type luks1 --label LINUX /dev/sdb3
 sudo cryptsetup luksFormat --type luks1 --label STORAGE /dev/sdb4
 ```
+
 (Choose strong passphrases and add them to your password manager)
 
 Define some variables we will need along the way:
@@ -156,6 +157,7 @@ Mount the Linux partition previously created on the USB device:
 ```
 sudo mount "/dev/mapper/$luks_root_uuid" /mnt
 ```
+
 DANGER: be careful, your main drive is accessible from within the chroot as well !!
 
 Then run debootstrap to install debian:
@@ -163,6 +165,7 @@ Then run debootstrap to install debian:
 ```
 sudo debootstrap --arch amd64 --components main,contrib,non-free-firmware stable /mnt http://ftp.us.debian.org/debian
 ```
+
 (Don't forget to use the `proxify` script if you use my setup)
 
 When it's done, mount additional resources:
@@ -219,6 +222,7 @@ sudo chmod 400 "/mnt/root/luks_${luks_root_uuid}.keyfile"
 ```
 
 Now we must enroll the newly created keyfiles so that we can open the USB device with it:
+
 ```
 sudo cryptsetup luksAddKey /dev/sdb3 "/mnt/root/luks_${luks_root_uuid}.keyfile"
 sudo cryptsetup luksAddKey /dev/sdb4 "/mnt/root/luks_${luks_storage_uuid}.keyfile"
@@ -338,9 +342,11 @@ sudo mount /dev/sdb3 /mnt
 ```
 
 And copy the previously created keyfile to the root of your main computer:
+
 ```
 sudo cp "/mnt/root/luks_${luks_storage_uuid}.keyfile" "/root/luks_${luks_storage_uuid}.keyfile"
 ```
+
 Warning: the keyfile should be readable only by root !!
 
 Create a folder where the USB drive will be mounted:
@@ -352,19 +358,19 @@ sudo mkdir -m 700 -p "/media/usb/my_device"
 Run the following command to open the LUKS container automatically using the keyfile:
 
 ```
-echo "$luks_storage_uuid UUID=$luks_storage_uuid /root/luks_${luks_storage_uuid}.keyfile luks,discard" | sudo tee -a /etc/crypttab
+echo "$luks_storage_uuid UUID=$luks_storage_uuid /root/luks_${luks_storage_uuid}.keyfile luks,discard,nofail" | sudo tee -a /etc/crypttab
 ```
 
 If your external USB device **filesystem is btrfs**, run the following command:
 
 ```
-echo "/dev/mapper/$luks_storage_uuid /media/usb/my_device btrfs defaults,noatime,nodiratime,subvol=@snapshots,compress=zstd,space_cache=v2,nofail,x-systemd.device-timeout=100ms    0  2" | sudo tee -a /etc/fstab
+echo "/dev/mapper/$luks_storage_uuid /media/usb/my_device btrfs defaults,noatime,nodiratime,subvol=@snapshots,compress=zstd,space_cache=v2,nofail    0  2" | sudo tee -a /etc/fstab
 ```
 
 If your external USB device **filesystem is ext4**, run the following command:
 
 ```
-echo "/dev/mapper/$luks_storage_uuid /media/usb/my_device ext4 defaults,noatime,nodiratime,nofail,x-systemd.device-timeout=100ms    0  2" | sudo tee -a /etc/fstab
+echo "/dev/mapper/$luks_storage_uuid /media/usb/my_device ext4 defaults,noatime,nodiratime,nofail    0  2" | sudo tee -a /etc/fstab
 ```
 
 And boom, you're done, you can now unmount the Linux partition:
