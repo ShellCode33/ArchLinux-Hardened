@@ -228,7 +228,7 @@ def notify_if_relevant(log_entry: dict) -> None:
                f"Success: {log_entry['success']}"
 
     elif log_entry["type"] == "SYSCALL" and log_entry["key"] == "power_abuse":
-        title = "PRIVILEGED PROCESS READING HOME DIRECTORY"
+        title = "PRIVILEGED PROCESS USING HOME DIRECTORY"
         body = f"From: {log_entry['AUID']}\n" \
                f"Using: {log_entry['exe']}\n" \
                f"Syscall: {log_entry['SYSCALL']}\n" \

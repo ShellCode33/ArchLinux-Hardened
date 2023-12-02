@@ -18,5 +18,6 @@
 -w /usr/bin/auditd -p x -k auditd_tampering
 -w /usr/bin/augenrules -p x -k auditd_tampering
 
-# Detect privileged process accessing home directories
--a always,exit -F dir=/home -F uid=0 -F auid>=1000 -F auid!=-1 -C auid!=obj_uid -k power_abuse
+# Detect privileged process accessing home directories (separate arch mandatory otherwise the kernel is confused)
+-a always,exit -F dir=/home/ -F arch=b32 -S open,openat,openat2,getdents,getdents64,mkdir,mkdirat,rmdir,unlink,unlinkat -F uid=0 -F auid>=1000 -F auid!=-1 -C auid!=obj_uid -k power_abuse
+-a always,exit -F dir=/home/ -F arch=b64 -S open,openat,openat2,getdents,getdents64,mkdir,mkdirat,rmdir,unlink,unlinkat -F uid=0 -F auid>=1000 -F auid!=-1 -C auid!=obj_uid -k power_abuse
