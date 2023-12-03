@@ -34,7 +34,8 @@ iptables-nft # includes nftables as a dependency, will automatically uninstall i
 firefox
 wget
 dnsmasq # used by libvirtd
-glider # used for the network opt-in security measure
+glider # HTTP proxy used for the network opt-in security measure
+socat # used to relay SSH through the HTTP proxy
 
 # Security
 apparmor
