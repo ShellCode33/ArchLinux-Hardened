@@ -4,7 +4,8 @@ After=network.target nftables.service
 
 [Service]
 Type=simple
-User=http
+DynamicUser=yes
+Group=allow-internet
 Restart=always
 LimitNOFILE=102400
 ExecStart=/usr/bin/glider -listen http://127.0.0.1:8080

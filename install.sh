@@ -251,6 +251,9 @@ for group in wheel audit libvirt firejail; do
 done
 echo "$user:$user_password" | arch-chroot /mnt chpasswd
 
+# Create a group that will be able to reach the internet (see docs/PROXY.md)
+arch-chroot /mnt groupadd -rf allow-internet
+
 # Temporarly give sudo NOPASSWD rights to user for yay
 echo "$user ALL=(ALL) NOPASSWD:ALL" >>"/mnt/etc/sudoers"
 
