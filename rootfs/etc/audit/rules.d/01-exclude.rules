@@ -1,5 +1,16 @@
+# Filter out messages we don't use to prevent spam
 -a exclude,always -F msgtype=BPF
--a exclude,always -F msgtype=SERVICE_STOP
--a exclude,always -F msgtype=SOCKADDR
 -a exclude,always -F msgtype=USER_START
 -a exclude,always -F msgtype=USER_END
+-a exclude,always -F msgtype=CWD
+-a exclude,always -F msgtype=PATH
+-a exclude,always -F msgtype=USER_ACCT
+-a exclude,always -F msgtype=CRED_REFR
+-a exclude,always -F msgtype=CRED_DISP
+-a exclude,always -F msgtype=CRED_ACQ
+-a exclude,always -F msgtype=NETFILTER_CFG
+-a exclude,always -F msgtype=EXECVE
+
+# Monitoring of systemd services is done through journalctl
+-a exclude,always -F msgtype=SERVICE_START
+-a exclude,always -F msgtype=SERVICE_STOP
