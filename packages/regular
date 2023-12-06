@@ -28,7 +28,6 @@ sbsigntools
 edk2-shell # useful EFI shell in case things go wrong
 
 # Networking
-dhcpcd
 iwd
 iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
 firefox
@@ -117,6 +116,7 @@ strace
 
 # File viewers/editors
 zathura
+zathura-pdf-poppler
 swayimg
 mpv
 gimp
