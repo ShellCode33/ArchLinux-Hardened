@@ -11,7 +11,11 @@ Defaults pwfeedback
 
 Defaults editor="/usr/bin/nvim"
 
+# Useful for applications that wrap sudo (e.g. yay)
 Defaults env_keep += "ftp_proxy rsync_proxy http_proxy https_proxy no_proxy"
 Defaults env_keep += "FTP_PROXY RSYNC_PROXY HTTP_PROXY HTTPS_PROXY NO_PROXY"
+
+# Useful for GUI applications that require root privileges (e.g. Wireshark)
+Defaults env_keep += "WAYLAND_DISPLAY XDG_RUNTIME_DIR SDL_VIDEODRIVER QT_QPA_PLATFORM"
 
 %wheel ALL=(ALL:ALL) ALL
