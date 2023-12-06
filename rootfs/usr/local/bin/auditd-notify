@@ -15,7 +15,7 @@ import sys
 import time
 from io import TextIOWrapper
 from traceback import format_exc
-from typing import Dict, Iterable, Tuple
+from typing import Iterable, Tuple
 
 DEFAULT_SLEEP = 1
 LOG_FILE = "/var/log/audit/audit.log"
@@ -131,7 +131,7 @@ def reopen_logfile_if_needed(
 # type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
 # type=PROCTITLE msg=audit(1677959203.476:99): proctitle="(systemd)"
 # type=USER_START msg=audit(1677959203.479:100): pid=625 uid=0 auid=1000 ses=2 subj=unconfined msg='op=PAM:session_open grantors=pam_loginuid,pam_loginuid,pam_keyinit,pam_systemd_home,pam_limits,pam_unix,pam_permit,pam_mail,pam_systemd,pam_env acct="shellcode" exe="/usr/lib/systemd/systemd" hostname=? addr=? terminal=? res=success'UID="root" AUID="shellcode"
-def parse_auditd_entry(event: str) -> Dict:
+def parse_auditd_entry(event: str) -> dict[str, str]:
     log_entry = {}
 
     # First we replace some parts of the entry for an easier split
@@ -198,7 +198,8 @@ def notify(title: str, body: str) -> None:
 # Examples of logs considered relevant
 # type=AVC msg=audit(1677959581.156:342): apparmor="DENIED" operation="open" profile="firefox" name="/home/shellcode/.dotfiles/.config/user-dirs.dirs" pid=1523 comm=46532042726F6B65722031363933 requested_mask="r" denied_mask="r" fsuid=1000 ouid=1000FSUID="shellcode" OUID="shellcode"
 # type=SECCOMP msg=audit(1701619501.959:5364): auid=1000 uid=1000 gid=1000 ses=1 subj=firejail-default//&unconfined pid=16904 comm="wget" exe="/usr/bin/wget" sig=0 arch=c000003e syscall=41 compat=0 ip=0x6c62ba930deb code=0x50000AUID="shellcode" UID="shellcode" GID="shellcode" ARCH=x86_64 SYSCALL=socket
-def notify_if_relevant(log_entry: dict) -> None:
+# type=ANOM_PROMISCUOUS msg=audit(1701697411.140:335): dev=wlan0 prom=256 old_prom=0 auid=1000 uid=0 gid=0 ses=1AUID="shellcode" UID="root" GID="root"
+def notify_if_relevant(log_entry: dict[str, str]) -> None:
     if "apparmor" in log_entry and log_entry["apparmor"] == "DENIED":
         title = "APPARMOR DENIAL"
         body = (
@@ -224,6 +225,14 @@ def notify_if_relevant(log_entry: dict) -> None:
             f"PID: {log_entry['pid']}\n"
             f"Signal: {log_entry['sig']}\n"
             f"User: {log_entry['AUID']}"
+        )
+
+    elif log_entry["type"] == "ANOM_PROMISCUOUS" and log_entry["prom"] != "0":
+        title = "INTERFACE IN PROMISCUOUS MODE"
+        body = (
+            f"Inteface: {log_entry['dev']}\n"
+            f"User: {log_entry['AUID']}\n\n"
+            "Someone might be listening to your network traffic !"
         )
 
     elif log_entry["type"] == "USER_AUTH" and log_entry["res"] == "failed":
