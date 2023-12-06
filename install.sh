@@ -187,7 +187,7 @@ grep -o '^[^ *#]*' packages/regular | pacstrap -K /mnt -
 
 # Copy custom files to the new installation
 cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/
-find rootfs -type f -exec bash -c 'file="$1"; dest="/mnt/${file#rootfs/}"; mkdir -p "$(dirname "$dest")"; cp "$file" "$dest"' shell {} \;
+find rootfs -type f -exec bash -c 'file="$1"; dest="/mnt/${file#rootfs/}"; mkdir -p "$(dirname "$dest")"; cp -P "$file" "$dest"' shell {} \;
 
 # Patch pacman config
 sed -i "s/#Color/Color/g" /mnt/etc/pacman.conf
@@ -306,10 +306,11 @@ arch-chroot /mnt /usr/bin/firecfg
 echo "$user" >/mnt/etc/firejail/firejail.users
 
 # Configure systemd services
+arch-chroot /mnt systemctl enable systemd-networkd
+arch-chroot /mnt systemctl enable systemd-resolved
 arch-chroot /mnt systemctl enable systemd-timesyncd
 arch-chroot /mnt systemctl enable getty@tty1
 arch-chroot /mnt systemctl enable dbus-broker
-arch-chroot /mnt systemctl enable dhcpcd
 arch-chroot /mnt systemctl enable iwd
 arch-chroot /mnt systemctl enable auditd
 arch-chroot /mnt systemctl enable nftables
