@@ -77,13 +77,13 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
     begin = line_as_bytes.find(b":")
     line = line_as_bytes[begin + 1 :].decode().strip()
     tokens = line.split()
-    content: dict[str, str | None] = {}
+    content: dict[str, str] = {}
 
     for token in tokens:
         key_value = token.split("=")
 
         if len(key_value) == 1:
-            content[key_value[0]] = None
+            content[key_value[0]] = ""
         elif len(key_value) == 2:
             content[key_value[0]] = key_value[1]
         else:
@@ -98,8 +98,13 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
     if "MACDST" in content and content["MACDST"] == "ff:ff:ff:ff:ff:ff":
         return
 
+    # Don't process rejected multicast packets
+    if "DST" in content and content["DST"].startswith("224.0.0."):
+        return
+
     try:
         src_addr = content["SRC"]
+        src_port = content["SPT"]
         dst_addr = content["DST"]
         dst_port = content["DPT"]
         proto = content["PROTO"]
@@ -109,7 +114,7 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
         error = f"{ke} is missing from the following log:\n{line}"
         raise ValueError(error) from ke
 
-    body = f"{src_addr} tried to reach {dst_addr}:{dst_port} ({proto})\n"
+    body = f"{src_addr}:{src_port} tried to reach {dst_addr}:{dst_port} ({proto})\n"
 
     if "REJECTED FORWARD" in line:
         chain = "FORWARD"
