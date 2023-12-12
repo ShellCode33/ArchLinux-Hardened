@@ -114,7 +114,7 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
         error = f"{ke} is missing from the following log:\n{line}"
         raise ValueError(error) from ke
 
-    body = f"{src_addr}:{src_port} tried to reach {dst_addr}:{dst_port} ({proto})\n"
+    body = f"{src_addr} tried to reach {dst_addr}:{dst_port} ({proto})\n"
 
     if "REJECTED FORWARD" in line:
         chain = "FORWARD"
