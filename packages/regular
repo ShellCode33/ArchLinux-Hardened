@@ -45,6 +45,7 @@ restic # backup
 
 # Virtualization/Containerization
 docker
+docker-compose
 qemu-full
 virt-manager
 
