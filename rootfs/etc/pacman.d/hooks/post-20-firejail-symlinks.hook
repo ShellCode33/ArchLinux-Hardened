@@ -7,7 +7,7 @@ Target = usr/bin/*
 Target = usr/share/applications/*.desktop
 
 [Action]
-Description = Configure symlinks in /usr/local/bin based on firecfg.config (but exclude programs from firecfg-ignore.config)...
+Description = Configure symlinks in /usr/local/bin based on firecfg.config...
 When = PostTransaction
 Depends = firejail
-Exec = /bin/sh -c 'firecfg >/dev/null 2>&1 && (sed -E \'/^[[:blank:]]*(#|$)/d; s/[[:blank:]]*#.*//\' /etc/firejail/firecfg-ignore.config | xargs -I{} rm -f /usr/local/bin/{})'
+Exec = /bin/sh -c 'firecfg >/dev/null 2>&1'
