@@ -1,5 +1,6 @@
 [Unit]
 Description=Cache upgradable packages in the background but do not install them
+After=network.target systemd-networkd-wait-online.service
 
 [Service]
 Type=oneshot
