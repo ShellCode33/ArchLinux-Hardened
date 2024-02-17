@@ -1,6 +1,8 @@
 #!/bin/sh
 # As I'm writing this, signal-desktop doesn't automatically source ~/.config/electron-flags.conf
 # But we need it in order to pass Wayland-related flags.
-# This wrapper script might probably be removable at some point when ArchLinux fixes this.
+# This wrapper script might probably be removable at some point when the maintainer of signal-desktop fixes this.
 # See: https://wiki.archlinux.org/title/wayland#Electron
-exec /usr/local/bin/proxify /usr/bin/signal-desktop $(cat "$XDG_CONFIG_HOME/electron-flags.conf")
+#
+# Additionally, --no-sandbox is passed because firejail is configured to forbid setuid binaries but Electron apps rely on the chromium setuid sandbox.
+exec /usr/local/bin/proxify /usr/bin/firejail /usr/bin/signal-desktop --no-sandbox $(cat "$XDG_CONFIG_HOME/electron-flags.conf")
