@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+
+"""Lock scripts which doesn't trigger if you're connected to your home network.
+
+On lock it also sends a dbus message to KeePassXC to lock the database
+(so nothing that stays in memory).
+
+You can use --force if you want to lock even if you're on your home network.
+"""
+
+import os
+import sys
+from subprocess import run
+
+WALLPAPER = os.environ["HOME"] + "/.local/share/wallpaper.jpg"
+
+# Get your router mac address using "ip neighbor"
+HOME_NETWORK_MAC = "50:6f:0c:73:22:b0"  # CHANGEME
+
+
+def lock_keepassxc() -> None:
+    run(
+        [
+            "/usr/bin/dbus-send",
+            "--print-reply",
+            "--dest=org.keepassxc.KeePassXC.MainWindow",
+            "/keepassxc",
+            "org.keepassxc.KeePassXC.MainWindow.lockAllDatabases",
+        ],
+        check=False,  # so that it doesn't error if KeePassXC is not running
+        capture_output=True,
+    )
+
+
+def lock_desktop() -> None:
+    os.execv(
+        "/usr/bin/swaylock",
+        [
+            "swaylock",
+            "--ignore-empty-password",
+            "--show-failed-attempts",
+            "--image",
+            WALLPAPER,
+        ],
+    )
+
+
+def is_connected_to_home_network() -> bool:
+    proc = run(
+        ["/usr/bin/ip", "neighbor"],
+        check=True,
+        capture_output=True,
+    )
+
+    return HOME_NETWORK_MAC in proc.stdout.decode()
+
+
+def main() -> None:
+    force_lock = sys.argv[1] == "--force" if len(sys.argv) == 2 else False
+
+    if force_lock or not is_connected_to_home_network():
+        lock_keepassxc()
+        lock_desktop()
+
+
+if __name__ == "__main__":
+    main()
