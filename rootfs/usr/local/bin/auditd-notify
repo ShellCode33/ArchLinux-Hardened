@@ -20,22 +20,6 @@ from typing import Iterable, Tuple
 DEFAULT_SLEEP = 1
 LOG_FILE = "/var/log/audit/audit.log"
 
-# There are many binaries that need access to /etc/shadow
-# We want to monitor access to this file, but we also dont
-# want false positives. This whitelist aims to prevent FP.
-ETC_SHADOW_WHITELIST = (
-    "/usr/bin/sudo",
-    "/usr/bin/su",
-    "/usr/bin/unix_chkpwd",
-    "/usr/bin/swaylock",
-    "/usr/bin/sshd",
-    "/usr/bin/login",
-    "/usr/lib/systemd/systemd",
-    "/usr/bin/systemd-tmpfiles",
-    "/usr/lib/polkit-1/polkit-agent-helper-1",
-    "/usr/bin/firejail",
-)
-
 
 def follow_auditd_events() -> Iterable:
     boot_time = None
@@ -245,7 +229,6 @@ def notify_if_relevant(log_entry: dict[str, str]) -> None:
     elif (
         log_entry["type"] == "SYSCALL"
         and log_entry["key"] == "etc_shadow"
-        and log_entry["exe"] not in ETC_SHADOW_WHITELIST
     ):
         title = "SECRET FILE ACCESS"
         body = (

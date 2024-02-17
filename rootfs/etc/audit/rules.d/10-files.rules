@@ -1,5 +1,5 @@
-# Monitor access to /etc/shadow
--w /etc/shadow -p rwa -F auid!=-1 -k etc_shadow
+# Monitor writes to /etc/shadow
+-w /etc/shadow -p wa -F auid!=-1 -k etc_shadow
 
 # System wide LD_PRELOAD (typical rootkit)
 -w /etc/ld.so.preload -p wa -k etc_ld_so_preload
