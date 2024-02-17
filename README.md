@@ -21,16 +21,16 @@ Physical tampering hardening:
 
 Exploit mitigation:
 
-- GraphenOS' hardened kernel
+- GrapheneOS' hardened kernel
 - Kernel's lockdown mode set to "integrity"
 - Firejail + AppArmor (see [FIREJAIL.md](docs/FIREJAIL.md) for the why)
 
 Network hardening:
 
+- Strict firewalling rules (drop everything by default, see [NETWORKING.md](https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md))
 - Reverse Path Filtering set to strict
 - ICMP redirects disabled
 - The hardened kernel has very strong defaults regarding network security
-- Strict firewalling rules (drop everything by default, see [NETWORKING.md](https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md))
 
 System monitoring:
 
@@ -58,6 +58,7 @@ Head over to [INSTALL.md](docs/INSTALL.md)
 
 ## Additional documentation
 
+- [My threat model](/docs/THREAT_MODEL.md)
 - [Manage SSH and GPG secrets securely without a password thanks to KeePassXC](docs/HOW_TO_MANAGE_SECRETS.md)
 - [Setup an auto-mounted encrypted standalone USB device](docs/HOW_TO_SECURE_USB_DEVICE.md)
 - [Firefox hardening tips](docs/HOW_TO_FIREFOX.md)

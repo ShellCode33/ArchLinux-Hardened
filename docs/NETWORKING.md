@@ -34,8 +34,9 @@ bypass this measure.
 But let me try to convince you of the usefulness of this:
 
 1. It would still prevent poorly written malware from exfiltrating data and reverse connecting to a C&C (script kiddies are all over the place).
-2. It prevents "well-behaved" applications from reaching the internet without you noticing. Many times in the past it has happened that dependencies of legitimate programs have been backdoored. Blocking access to the internet might prevent those legitimate apps from self-updating and potentially pulling malicious code. First program that comes to my mind is neovim and its npm dependencies.
-3. This local proxy allows you to monitor what's going on (i.e. which apps are using the network). It can be useful for statistics purposes or to look for something fishy. Being able to monitor what's going on on a system is also a big component of systems security.
+2. It prevents "well-behaved" applications from reaching the internet without you noticing. Many applications fetch content from remote servers (especially Google Cloud and Amazon AWS).
+3. It can help prevent supply chain attacks. Many times in the past it has happened that dependencies of legitimate programs have been backdoored. Blocking access to the internet might prevent those legitimate apps from self-updating and potentially pulling malicious code. First program that comes to my mind is neovim and its npm dependencies.
+4. This local proxy allows you to monitor what's going on (i.e. which apps are using the network). It can be useful for statistics purposes or to look for something fishy. Being able to monitor what's going on on a system is also a big component of systems security.
 
 This is both defense in depth and a great privacy tool. (Privacy in the sense that it prevents apps from reaching the internet, your IP will obviously still be the same).
 
