@@ -20,7 +20,7 @@ Image Credit: https://xkcd.com/1200/
 - Thieves that could steal my hardware
 - Corporations that make money on my back
 - Script kiddies, and even more tech savvy hackers
-- I wish I could but there's no way I can protect from state-sponsored hackers considering how much money and manpower they have
+- Slow down state-sponsored hackers as much as possible, but considering how much money and manpower they have, if I'm being targeted I do realize there's nothing I can do
 
 ## How likely is it that I will need to protect it?
 
@@ -37,7 +37,7 @@ Not that bad, I'm not a public figure or anything, just a random person on the i
 
 Still, I don't want my passwords, SSH and GPG keys to leak.
 
-It's a more a matter of principle that a real need to avoid any consequence.
+It's more a matter of principle that a real need to avoid any consequence.
 
 ## How much trouble am I willing to go through to try to prevent potential consequences?
 
