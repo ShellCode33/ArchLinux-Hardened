@@ -39,6 +39,7 @@ socat # used to relay SSH through the HTTP proxy
 # Security
 apparmor
 firejail
+xdg-dbus-proxy # Used by firejail to enforce DBUS policies
 polkit
 keepassxc
 restic # backup
