@@ -222,7 +222,7 @@ ln -sfT dash /mnt/usr/bin/sh
 	echo -n " audit=1"
 
 	# Increase default log size
-	echo -n " audit_backlog_limit=16384"
+	echo -n " audit_backlog_limit=32768"
 
 	# Completely quiet the boot process to display some eye candy using plymouth instead :)
 	echo -n " quiet splash rd.udev.log_level=3"
