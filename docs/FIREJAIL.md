@@ -12,6 +12,6 @@ Regarding the setuid controversy, I was quite sold by a point made by the creato
 
 > Once inside a sandbox - firejail, bubblewrap, or any other seccomp sandbox - you can not exploit any SUID executable present in the system. It has to do with the way seccomp is handled by the kernel. The attack surface of the program that configured seccomp becomes irrelevant. In other words, if you get control of a firefox running in a sandbox, the kernel wouldn't let you exploit the program that started the sandbox.
 
-(Also, I don't really care if an attacker is able to privesc on my machine, see my [threat model](docs/THREAT_MODEL.md))
+(Also, I don't really care if an attacker is able to privesc on my machine, see my [threat model](THREAT_MODEL.md))
 
 In addition to that, Firejail has an AppArmor profile which is in use as well.
