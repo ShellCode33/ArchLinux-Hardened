@@ -1,23 +1,30 @@
+#
+# Tips:
+#
+# - Use the 'ausyscall' program to search syscalls
+# - Use '-F auid!=unset' if you don't want to log actions that are not made by a logged in user.
+#
+
 # Monitor writes to /etc/shadow
--w /etc/shadow -p wa -F auid!=-1 -k etc_shadow
+-w /etc/shadow -p wa -F auid!=unset -k etc_shadow
 
 # System wide LD_PRELOAD (typical rootkit)
--w /etc/ld.so.preload -p wa -k etc_ld_so_preload
+-w /etc/ld.so.preload -p wa -F auid!=unset -k etc_ld_so_preload
 
 # Potential bootkit
--w /usr/bin/arch-secure-boot -p wa -k secure_boot_manager
--w /etc/arch-secure-boot/keys -p rwa -k secure_boot_keys
--w /etc/secureboot/keys -p rwa -k secure_boot_keys
--w /efi -p wa -k efi_boot
+-w /usr/bin/arch-secure-boot -p wa -F auid!=unset -k secure_boot_manager
+-w /etc/arch-secure-boot/keys -p rwa -F auid!=unset -k secure_boot_keys
+-w /etc/secureboot/keys -p rwa -F auid!=unset -k secure_boot_keys
+-w /efi -p wa -F auid!=unset -k efi_boot
 
 # Monitor auditd itself, someone might try to alter its configuration to increase stealthiness
--w /var/log/audit/ -p wa -k auditd_tampering
--w /etc/audit/ -p wa -k auditd_tampering
--w /etc/libaudit.conf -p wa -k auditd_tampering
--w /usr/bin/auditctl -p x -k auditd_tampering
--w /usr/bin/auditd -p x -k auditd_tampering
--w /usr/bin/augenrules -p x -k auditd_tampering
+-w /var/log/audit/ -p wa -F auid!=unset -k auditd_tampering
+-w /etc/audit/ -p wa -F auid!=unset -k auditd_tampering
+-w /etc/libaudit.conf -p wa -F auid!=unset -k auditd_tampering
+-w /usr/bin/auditctl -p x -F auid!=unset -k auditd_tampering
+-w /usr/bin/auditd -p x -F auid!=unset -k auditd_tampering
+-w /usr/bin/augenrules -p x -F auid!=unset -k auditd_tampering
 
 # Detect privileged process accessing home directories (separate arch mandatory otherwise the kernel is confused)
--a always,exit -F dir=/home/ -F arch=b32 -S open,openat,openat2,getdents,getdents64,mkdir,mkdirat,rmdir,unlink,unlinkat -F uid=0 -F auid>=1000 -F auid!=-1 -C auid!=obj_uid -k power_abuse
--a always,exit -F dir=/home/ -F arch=b64 -S open,openat,openat2,getdents,getdents64,mkdir,mkdirat,rmdir,unlink,unlinkat -F uid=0 -F auid>=1000 -F auid!=-1 -C auid!=obj_uid -k power_abuse
+-a always,exit -F dir=/home/ -F arch=b32 -S open,openat,openat2,getdents,getdents64,mkdir,mkdirat,rmdir,unlink,unlinkat -F uid=0 -F auid>=1000 -F auid!=unset -C auid!=obj_uid -k power_abuse
+-a always,exit -F dir=/home/ -F arch=b64 -S open,openat,openat2,getdents,getdents64,mkdir,mkdirat,rmdir,unlink,unlinkat -F uid=0 -F auid>=1000 -F auid!=unset -C auid!=obj_uid -k power_abuse
