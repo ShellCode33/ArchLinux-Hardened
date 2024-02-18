@@ -121,7 +121,7 @@ Then create a second entry called `keygrip` which must contain the keygrip of yo
 With the output above it should be:
 
 ```
-n/ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
+n/YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
 ```
 
 And you're done ! The pinentry program won't ask for your password anymore, as long as your KeePassXC database is unlocked.
