@@ -338,7 +338,8 @@ In this chapter we are only interested in the storage area of the USB device.
 Make sure the **Linux partition** (not the storage one) of the USB drive is mounted:
 
 ```
-sudo mount /dev/sdb3 /mnt
+sudo cryptsetup luksOpen /dev/sdb3 "$luks_root_uuid"
+sudo mount "/dev/mapper/$luks_root_uuid" /mnt
 ```
 
 And copy the previously created keyfile to the root of your main computer:
