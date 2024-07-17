@@ -1,5 +1,6 @@
 [Unit]
 Description=Run the auditor script to check for system misconfigurations
+After=network.target systemd-networkd-wait-online.service
 
 [Service]
 Type=oneshot
