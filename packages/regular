@@ -117,6 +117,7 @@ npm # for nvim plugins
 
 # Debugging
 gdb
+pwndbg
 strace
 
 # File viewers/editors
