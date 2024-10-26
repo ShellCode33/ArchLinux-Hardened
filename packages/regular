@@ -7,13 +7,7 @@ linux-hardened
 linux-hardened-headers
 linux-lts
 linux-firmware
-intel-ucode
 mkinitcpio
-
-# Hardware acceleration
-mesa
-vulkan-intel
-intel-media-driver # iGPU video acceleration
 
 # Filesystem tools
 btrfs-progs

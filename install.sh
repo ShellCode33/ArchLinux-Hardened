@@ -18,45 +18,45 @@ exec 2> >(tee "stderr.log" >&2)
 BACKTITLE="ArchLinux Hardened Installation"
 
 on_error() {
-	ret=$?
-	echo "[$0] Error on line $LINENO: $BASH_COMMAND"
-	exit $ret
+  ret=$?
+  echo "[$0] Error on line $LINENO: $BASH_COMMAND"
+  exit $ret
 }
 
 get_input() {
-	title="$1"
-	description="$2"
+  title="$1"
+  description="$2"
 
-	input=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --inputbox "$description" 0 0)
-	echo "$input"
+  input=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --inputbox "$description" 0 0)
+  echo "$input"
 }
 
 get_password() {
-	title="$1"
-	description="$2"
+  title="$1"
+  description="$2"
 
-	init_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description" 0 0)
-	test -z "$init_pass" && echo >&2 "password cannot be empty" && exit 1
+  init_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description" 0 0)
+  test -z "$init_pass" && echo >&2 "password cannot be empty" && exit 1
 
-	test_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description again" 0 0)
-	if [[ "$init_pass" != "$test_pass" ]]; then
-		echo "Passwords did not match" >&2
-		exit 1
-	fi
-	echo "$init_pass"
+  test_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description again" 0 0)
+  if [[ "$init_pass" != "$test_pass" ]]; then
+    echo "Passwords did not match" >&2
+    exit 1
+  fi
+  echo "$init_pass"
 }
 
 get_choice() {
-	title="$1"
-	description="$2"
-	shift 2
-	options=("$@")
-	dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --menu "$description" 0 0 0 "${options[@]}"
+  title="$1"
+  description="$2"
+  shift 2
+  options=("$@")
+  dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --menu "$description" 0 0 0 "${options[@]}"
 }
 
 if [ ! -d /sys/firmware/efi ]; then
-	echo >&2 "legacy BIOS boot detected, this install script only works with UEFI."
-	exit 1
+  echo >&2 "legacy BIOS boot detected, this install script only works with UEFI."
+  exit 1
 fi
 
 # Unmount previously mounted devices in case the install script is run multiple times
@@ -80,6 +80,19 @@ hidpi=$(get_choice "Font size" "Is your screen HiDPI?" "${noyes[@]}") || exit 1
 clear
 [[ "$hidpi" == "Yes" ]] && font="ter-132n" || font="ter-716n"
 setfont "$font"
+
+# Setup CPU/GPU target
+cpu_list=("Intel" "" "AMD" "")
+cpu_target=$(get_choice "Installation" "Select the targetted CPU vendor" "${cpu_list[@]}") || exit 1
+clear
+
+noyes=("Yes" "" "No" "")
+install_igpu_drivers=$(get_choice "Installation" "Does your CPU have integrated graphics ?" "${noyes[@]}") || exit 1
+clear
+
+gpu_list=("Nvidia" "" "AMD" "" "None" "I don't have any GPU")
+gpu_target=$(get_choice "Installation" "Select the targetted GPU vendor" "${gpu_list[@]}") || exit 1
+clear
 
 # Ask which device to install ArchLinux on
 devicelist=$(lsblk -dplnx size -o name,size | grep -Ev "boot|rpmb|loop" | tac | tr '\n' ' ')
@@ -122,8 +135,8 @@ sgdisk --change-name=1:primary --change-name=2:ESP "${device}"
 
 # shellcheck disable=SC2086,SC2010
 {
-	part_root="$(ls ${device}* | grep -E "^${device}p?1$")"
-	part_boot="$(ls ${device}* | grep -E "^${device}p?2$")"
+  part_root="$(ls ${device}* | grep -E "^${device}p?1$")"
+  part_boot="$(ls ${device}* | grep -E "^${device}p?2$")"
 }
 
 mkfs.vfat -n "EFI" -F 32 "${part_boot}"
@@ -183,7 +196,60 @@ mkswap /mnt/.swap/swapfile # according to btrfs doc it shouldn't be needed, it's
 swapon /mnt/.swap/swapfile # we use the swap so that genfstab detects it
 
 # Install all packages listed in packages/regular
-grep -o '^[^ *#]*' packages/regular | pacstrap -K /mnt -
+grep -o '^[^ *#]*' packages/regular >regular_packages_to_install
+
+if [[ "$gpu_target" != "None" || "$install_igpu_drivers" = "Yes" ]]; then
+  {
+    # Open-source OpenGL drivers
+    echo mesa
+
+    # Vulkan Installable Client Driver
+    echo vulkan-icd-loader
+  } >>regular_packages_to_install
+fi
+
+if [[ "$cpu_target" == "Intel" ]]; then
+  echo intel-ucode >>regular_packages_to_install
+
+  if [[ "$install_igpu_drivers" == "Yes" ]]; then
+    {
+      # HD Graphics series starting from Broadwell (2014) and newer
+      echo intel-media-driver
+
+      # GMA 4500 (2008) up to Coffee Lake (2017)
+      echo libva-intel-driver
+
+      # Open-source Vulkan driver for Intel GPUs
+      echo vulkan-intel
+    } >>regular_packages_to_install
+  fi
+elif [[ "$cpu_target" == "AMD" ]]; then
+  echo amd-ucode >>regular_packages_to_install
+else
+  echo "Unsupported CPU"
+  exit 1
+fi
+
+if [[ "$gpu_target" != "None" ]]; then
+  {
+
+    # GeForce 8 series and newer GPUs up until GeForce GTX 750
+    # VA-API on Radeon HD 2000 and newer GPUs
+    echo libva-mesa-driver
+
+    # GeForce 8 series and newer GPUs up until GeForce GTX 750
+    # VDPAU on Radeon R600 and newer GPUs
+    echo mesa-vdpau
+
+    if [[ "$gpu_target" = "Nvidia" ]]; then
+      echo vulkan-nouveau
+    elif [[ "$gpu_target" = "AMD" ]]; then
+      echo vulkan-radeon
+    fi
+  } >>regular_packages_to_install
+fi
+
+pacstrap -K /mnt - <regular_packages_to_install
 
 # Copy custom files to the new installation
 cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/
@@ -200,32 +266,32 @@ sed -i "s/username_placeholder/$user/g" /mnt/etc/libvirt/qemu.conf
 ln -sfT dash /mnt/usr/bin/sh
 
 {
-	# Customize Linux Security Modules to include AppArmor
-	echo -n "lsm=landlock,lockdown,yama,integrity,apparmor,bpf"
+  # Customize Linux Security Modules to include AppArmor
+  echo -n "lsm=landlock,lockdown,yama,integrity,apparmor,bpf"
 
-	# Put kernel in integrity lockdown mode
-	echo -n " lockdown=integrity"
+  # Put kernel in integrity lockdown mode
+  echo -n " lockdown=integrity"
 
-	# The LUKS device to decrypt
-	echo -n " cryptdevice=${part_root}:archlinux"
+  # The LUKS device to decrypt
+  echo -n " cryptdevice=${part_root}:archlinux"
 
-	# The decrypted device to mount as the root
-	echo -n " root=/dev/mapper/archlinux"
+  # The decrypted device to mount as the root
+  echo -n " root=/dev/mapper/archlinux"
 
-	# Mount the @ btrfs subvolume inside the decrypted device as the root
-	echo -n " rootflags=subvol=@"
+  # Mount the @ btrfs subvolume inside the decrypted device as the root
+  echo -n " rootflags=subvol=@"
 
-	# Allow suspend state (puts device into sleep but keeps powering the RAM for fast sleep mode recovery)
-	echo -n " mem_sleep_default=deep"
+  # Allow suspend state (puts device into sleep but keeps powering the RAM for fast sleep mode recovery)
+  echo -n " mem_sleep_default=deep"
 
-	# Ensure that all processes that run before the audit daemon starts are marked as auditable by the kernel
-	echo -n " audit=1"
+  # Ensure that all processes that run before the audit daemon starts are marked as auditable by the kernel
+  echo -n " audit=1"
 
-	# Increase default log size
-	echo -n " audit_backlog_limit=32768"
+  # Increase default log size
+  echo -n " audit_backlog_limit=32768"
 
-	# Completely quiet the boot process to display some eye candy using plymouth instead :)
-	echo -n " quiet splash rd.udev.log_level=3"
+  # Completely quiet the boot process to display some eye candy using plymouth instead :)
+  echo -n " quiet splash rd.udev.log_level=3"
 } >/mnt/etc/kernel/cmdline
 
 echo "FONT=$font" >/mnt/etc/vconsole.conf
@@ -246,8 +312,8 @@ sed -i 's/HUSHLOGIN_FILE.*/#\0/g' /etc/login.defs
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
 for group in wheel audit libvirt firejail; do
-	arch-chroot /mnt groupadd -rf "$group"
-	arch-chroot /mnt gpasswd -a "$user" "$group"
+  arch-chroot /mnt groupadd -rf "$group"
+  arch-chroot /mnt gpasswd -a "$user" "$group"
 done
 echo "$user:$user_password" | arch-chroot /mnt chpasswd
 
@@ -267,7 +333,13 @@ arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
                                           makepkg -si --noconfirm'
 
 # Install AUR packages
-grep -o '^[^ *#]*' packages/aur | HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy -
+grep -o '^[^ *#]*' packages/aur >aur_packages_to_install
+
+if [[ "$gpu_target" = "Nvidia" ]]; then
+  echo nouveau-fw >>aur_packages_to_install
+fi
+
+HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy - <aur_packages_to_install
 
 # Restore pacman wrapper
 mv /mnt/usr/local/bin/pacman.disable /mnt/usr/local/bin/pacman
