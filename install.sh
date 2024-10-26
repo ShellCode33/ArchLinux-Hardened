@@ -237,10 +237,6 @@ if [[ "$gpu_target" != "None" ]]; then
     # VA-API on Radeon HD 2000 and newer GPUs
     echo libva-mesa-driver
 
-    # GeForce 8 series and newer GPUs up until GeForce GTX 750
-    # VDPAU on Radeon R600 and newer GPUs
-    echo mesa-vdpau
-
     if [[ "$gpu_target" = "Nvidia" ]]; then
       echo vulkan-nouveau
     elif [[ "$gpu_target" = "AMD" ]]; then
