@@ -54,6 +54,7 @@ dunst # Notification daemon
 htop
 iotop
 lsof
+nvtop # htop equivalent for GPUs
 
 # Desktop environment
 sway
