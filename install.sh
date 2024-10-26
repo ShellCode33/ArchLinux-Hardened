@@ -355,8 +355,18 @@ sed -i '$ d' /mnt/etc/sudoers
 # You can choose your own theme from there: https://github.com/adi1090x/plymouth-themes
 arch-chroot /mnt plymouth-set-default-theme colorful_loop
 
+if [[ "$gpu_target" = "AMD" ]]; then
+  modules="amdgpu"
+elif [[ "$gpu_target" = "Nvidia" ]]; then
+  modules="nouveau"
+elif [[ "$cpu_target" = "Intel" && "$install_igpu_drivers" ]]; then
+  modules="i915"
+else
+  modules=""
+fi
+
 cat <<EOF >/mnt/etc/mkinitcpio.conf
-MODULES=(i915)
+MODULES=($modules)
 BINARIES=(setfont)
 FILES=()
 HOOKS=(base consolefont keymap udev autodetect modconf block plymouth encrypt filesystems keyboard)
