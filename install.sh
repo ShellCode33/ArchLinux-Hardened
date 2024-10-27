@@ -383,6 +383,10 @@ arch-chroot /mnt passwd -dl root
 arch-chroot /mnt /usr/bin/firecfg
 echo "$user" >/mnt/etc/firejail/firejail.users
 
+# Setup DNS
+arch-chroot /mnt rm -f /etc/resolv.conf
+arch-chroot /mnt ln -s /usr/lib/systemd/resolv.conf /etc/resolv.conf
+
 # Configure systemd services
 arch-chroot /mnt systemctl enable systemd-networkd
 arch-chroot /mnt systemctl enable systemd-resolved
