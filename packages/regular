@@ -103,6 +103,7 @@ neovim
 git
 lazygit
 rustup
+rust-analyzer
 clang
 ipython
 python-pip
