@@ -1,0 +1,314 @@
+#!/usr/bin/python3
+
+import contextlib
+import logging
+import os
+import sys
+from subprocess import CalledProcessError, run
+from time import sleep
+from xml.etree import ElementTree as xml
+
+LOG_FILE = "/var/log/libvirt/hook.log"
+
+logging.basicConfig(
+    filename=LOG_FILE,
+    encoding="utf-8",
+    level=logging.DEBUG,
+    format="[%(asctime)s][%(levelname)s] %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+)
+
+
+def start_display_manager() -> None:
+    try:
+        logging.debug("Logging in user from TTY1...")
+        run(
+            ["/usr/bin/systemctl", "start", "getty@tty1.service"],
+            capture_output=True,
+            check=True,
+        )
+        logging.info(
+            "User was logged in successfully, "
+            "graphical applications can now run again",
+        )
+    except CalledProcessError as cpe:
+        logging.error("Command failure: %s", cpe.cmd)
+        logging.error("Command output: %s", cpe.stderr.decode())
+        raise
+
+
+def stop_display_manager() -> None:
+    try:
+        logging.debug("Logging out user from TTY1...")
+        run(
+            ["/usr/bin/systemctl", "stop", "getty@tty1.service"],
+            capture_output=True,
+            check=True,
+        )
+        logging.info(
+            "User was logged out successfully, "
+            "graphical applications are not running anymore",
+        )
+    except CalledProcessError as cpe:
+        logging.error("Command failure: %s", cpe.cmd)
+        logging.error("Command output: %s", cpe.stderr.decode())
+        raise
+
+
+def unbind_framebuffers() -> None:
+    logging.info("Unbinding VT consoles framebuffers...")
+    for vtconsole in os.listdir("/sys/class/vtconsole/"):
+        try:
+            with open(f"/sys/class/vtconsole/{vtconsole}/name") as file:
+                vtconsole_name = file.read()
+        except FileNotFoundError:
+            continue
+
+        if "frame buffer" not in vtconsole_name:
+            continue
+
+        with open(f"/sys/class/vtconsole/{vtconsole}/bind", "w") as file:
+            file.write("0\n")
+
+    logging.info("Unbinding EFI framebuffer...")
+    try:
+        with open(
+            "/sys/bus/platform/drivers/efi-framebuffer/unbind",
+            "w",
+        ) as file:
+            file.write("efi-framebuffer.0\n")
+    except OSError as ose:
+        logging.warning("efi-framebuffer.0: %s", ose)
+
+
+def rebind_framebuffers() -> None:
+    logging.info("Rebinding EFI framebuffer...")
+    try:
+        with open(
+            "/sys/bus/platform/drivers/efi-framebuffer/bind",
+            "w",
+        ) as file:
+            file.write("efi-framebuffer.0\n")
+    except OSError as ose:
+        logging.warning("efi-framebuffer.0: %s", ose)
+
+    logging.info("Rebinding VT consoles framebuffers...")
+    for vtconsole in os.listdir("/sys/class/vtconsole/"):
+        try:
+            with open(f"/sys/class/vtconsole/{vtconsole}/name") as file:
+                vtconsole_name = file.read()
+        except FileNotFoundError:
+            continue
+
+        if "frame buffer" not in vtconsole_name:
+            continue
+
+        with open(f"/sys/class/vtconsole/{vtconsole}/bind", "w") as file:
+            file.write("1\n")
+
+
+def try_unload_driver(driver_name: str) -> None:
+    """Work around race condition.
+
+    modprobe: FATAL: Module amdgpu is in use
+    """
+    max_attempts = 5
+    current_attempt = 1
+
+    while True:
+        try:
+            run(
+                ["/usr/bin/modprobe", "-r", driver_name],
+                capture_output=True,
+                check=True,
+            )
+            break
+        except CalledProcessError:
+            if current_attempt == max_attempts:
+                raise
+
+            current_attempt += 1
+            sleep(0.5)
+
+
+def load_gpu_drivers() -> None:
+    try:
+        logging.debug("Loading kernel drivers...")
+        run(
+            ["/usr/bin/modprobe", "amdgpu"],
+            capture_output=True,
+            check=True,
+        )
+        logging.info("amdgpu driver was loaded successfully")
+    except CalledProcessError as cpe:
+        logging.error("Command failure: %s", cpe.cmd)
+        logging.error("Command output: %s", cpe.stderr.decode())
+        raise
+
+
+def unload_gpu_drivers() -> None:
+    try:
+        logging.debug("Unloading kernel drivers...")
+        try_unload_driver("amdgpu")
+        logging.info("amdgpu driver was unloaded successfully")
+    except CalledProcessError as cpe:
+        logging.error("Command failure: %s", cpe.cmd)
+        logging.error("Command output: %s", cpe.stderr.decode())
+        raise
+
+
+def load_vfio_drivers() -> None:
+    try:
+        for vfio_driver in ("vfio", "vfio_pci", "vfio_iommu_type1"):
+            logging.debug("Loading %s driver...", vfio_driver)
+            run(
+                ["/usr/bin/modprobe", vfio_driver],
+                capture_output=True,
+                check=True,
+            )
+            logging.info("%s driver was loaded successfully", vfio_driver)
+    except CalledProcessError as cpe:
+        logging.error("Command failure: %s", cpe.cmd)
+        logging.error("Command output: %s", cpe.stderr.decode())
+        raise
+
+
+def unload_vfio_drivers() -> None:
+    try:
+        for vfio_driver in ("vfio_pci", "vfio_iommu_type1", "vfio"):
+            logging.debug("Unloading %s driver...", vfio_driver)
+            try_unload_driver(vfio_driver)
+            logging.info("%s driver was unloaded successfully", vfio_driver)
+    except CalledProcessError as cpe:
+        logging.error("Command failure: %s", cpe.cmd)
+        logging.error("Command output: %s", cpe.stderr.decode())
+        raise
+
+
+def setup_amd_gpu_passthrough() -> None:
+    try:
+        stop_display_manager()
+        unbind_framebuffers()
+        unload_gpu_drivers()
+        load_vfio_drivers()
+        logging.info("GPU passthrough setup successfully!")
+    except Exception:
+        logging.error(
+            "An error occured while trying setup GPU passthrough, "
+            "trying to revert changes...",
+        )
+        teardown_amd_gpu_passthrough()
+        sys.exit(1)
+
+
+def teardown_amd_gpu_passthrough() -> None:
+    """Unlike the setup function, the tear down process will keep going on error."""
+    with contextlib.suppress(CalledProcessError):
+        unload_vfio_drivers()
+
+    with contextlib.suppress(CalledProcessError):
+        load_gpu_drivers()
+
+    rebind_framebuffers()
+    start_display_manager()
+
+
+def get_vm_pci_devices(vm_name: str) -> list[xml.Element]:
+    vm_config = xml.parse(f"/etc/libvirt/qemu/{vm_name}.xml").getroot()
+    return vm_config.findall(
+        "devices/hostdev[@type='pci']/source/address",
+    )
+
+
+def is_pci_device_gpu(node: xml.Element) -> bool:
+    domain = node.get("domain")
+    bus = node.get("bus")
+    slot = node.get("slot")
+    function = node.get("function")
+
+    if domain is None or bus is None or slot is None or function is None:
+        error = "unexpected VM XML config"
+        raise ValueError(error)
+
+    proc = run(
+        ["/usr/bin/lspci", "-s", f"{bus}:{slot}.{function}"],
+        capture_output=True,
+        check=True,
+    )
+
+    lspci_output = proc.stdout.decode()
+
+    if lspci_output[-1] == "\n":
+        lspci_output = lspci_output[:-1]
+
+    if "VGA" in lspci_output:
+        logging.info("VM wants to passthrough following GPU: %s", lspci_output)
+        return True
+
+    return False
+
+
+def main() -> None:
+    vm_name = sys.argv[1]
+    operation = sys.argv[2]
+
+    logging.debug("Machine: %s Operation: %s", vm_name, operation)
+
+    if operation not in ("prepare", "release"):
+        sys.exit(0)
+
+    pci_passthrough_devices = get_vm_pci_devices(vm_name)
+
+    logging.debug(
+        "VM wants to passthrough %d PCI devices",
+        len(pci_passthrough_devices),
+    )
+
+    vm_wants_gpu_passthrough = False
+    for device in pci_passthrough_devices:
+        try:
+            if is_pci_device_gpu(device):
+                vm_wants_gpu_passthrough = True
+        except CalledProcessError as cpe:
+            logging.error("Command failure: %s", cpe.cmd)
+            logging.error("Command output: %s", cpe.stderr.decode())
+            logging.error("Failed to determine if PCI device is a GPU")
+            continue
+        except ValueError as ve:
+            logging.error("%s", ve)
+            logging.error("Failed to determine if PCI device is a GPU")
+            continue
+
+    exit_status = 0
+    must_tear_down = False
+
+    if vm_wants_gpu_passthrough:
+        if operation == "prepare":
+            try:
+                setup_amd_gpu_passthrough()
+                logging.info("GPU passthrough setup successfully!")
+            except Exception:
+                logging.error(
+                    "An error occured while trying setup GPU passthrough, "
+                    "trying to revert changes...",
+                )
+                must_tear_down = True
+                exit_status = 1
+
+        elif operation == "release":
+            must_tear_down = True
+
+    if must_tear_down:
+        try:
+            teardown_amd_gpu_passthrough()
+        except Exception:
+            logging.error(
+                "An error occured while trying to tear down GPU passthrough...",
+            )
+            exit_status = 1
+
+    sys.exit(exit_status)
+
+
+if __name__ == "__main__":
+    main()
