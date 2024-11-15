@@ -384,7 +384,7 @@ arch-chroot /mnt /usr/bin/firecfg
 echo "$user" >/mnt/etc/firejail/firejail.users
 
 # Setup DNS
-arch-chroot /mnt rm -f /etc/resolv.conf
+rm -f /mnt/etc/resolv.conf
 arch-chroot /mnt ln -s /usr/lib/systemd/resolv.conf /etc/resolv.conf
 
 # Configure systemd services
