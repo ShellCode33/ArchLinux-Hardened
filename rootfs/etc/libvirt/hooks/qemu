@@ -257,7 +257,13 @@ def main() -> None:
     if operation not in ("prepare", "release"):
         sys.exit(0)
 
-    pci_passthrough_devices = get_vm_pci_devices(vm_name)
+    try:
+        pci_passthrough_devices = get_vm_pci_devices(vm_name)
+    except FileNotFoundError:
+        logging.info(
+            "Looks like %s is a new VM being created, don't do anything", vm_name
+        )
+        sys.exit(0)
 
     logging.debug(
         "VM wants to passthrough %d PCI devices",
