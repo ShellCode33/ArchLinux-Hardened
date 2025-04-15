@@ -1,0 +1,7 @@
+# Enable native notifications.
+dbus-user.talk org.freedesktop.Notifications
+# Allow inhibiting screensavers.
+dbus-user.talk org.freedesktop.ScreenSaver
+# Allow screensharing under Wayland.
+dbus-user.talk org.freedesktop.portal.Desktop
+
