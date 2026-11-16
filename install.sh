@@ -153,6 +153,7 @@ btrfs subvolume create /mnt/@snapshots
 btrfs subvolume create /mnt/@home-snapshots
 btrfs subvolume create /mnt/@libvirt
 btrfs subvolume create /mnt/@docker
+btrfs subvolume create /mnt/@podman
 btrfs subvolume create /mnt/@cache-pacman-pkgs
 btrfs subvolume create /mnt/@var
 btrfs subvolume create /mnt/@var-log
@@ -299,8 +300,6 @@ echo "fr_FR.UTF-8 UTF-8" >>/mnt/etc/locale.gen
 ln -sf /usr/share/zoneinfo/Europe/Paris /mnt/etc/localtime
 arch-chroot /mnt locale-gen
 
-genfstab -U /mnt >>/mnt/etc/fstab
-
 # For a smoother transition between Plymouth and Sway
 touch /mnt/etc/hushlogins
 sed -i 's/HUSHLOGIN_FILE.*/#\0/g' /etc/login.defs
@@ -312,6 +311,16 @@ for group in wheel audit libvirt firejail; do
   arch-chroot /mnt gpasswd -a "$user" "$group"
 done
 echo "$user:$user_password" | arch-chroot /mnt chpasswd
+
+# Prepare rootless Podman storage after useradd has created the user's home.
+# Container images and named volumes are excluded from home snapshots.
+arch-chroot -u "$user" /mnt mkdir -p "/home/$user/.local/share"
+mount --mkdir -o subvol=@podman,$mount_opt /dev/mapper/archlinux "/mnt/home/$user/.local/share/containers"
+arch-chroot /mnt chown "$user:" "/home/$user/.local/share/containers"
+chmod 700 "/mnt/home/$user/.local/share/containers"
+
+# Include all mounts, including the user's Podman storage.
+genfstab -U /mnt >>/mnt/etc/fstab
 
 # Create a group that will be able to reach the internet (see docs/PROXY.md)
 arch-chroot /mnt groupadd -rf allow-internet
@@ -396,7 +405,6 @@ arch-chroot /mnt systemctl enable dbus-broker
 arch-chroot /mnt systemctl enable iwd
 arch-chroot /mnt systemctl enable auditd
 arch-chroot /mnt systemctl enable nftables
-arch-chroot /mnt systemctl enable docker
 arch-chroot /mnt systemctl enable libvirtd
 arch-chroot /mnt systemctl enable check-secure-boot
 arch-chroot /mnt systemctl enable apparmor
@@ -418,6 +426,8 @@ arch-chroot /mnt systemctl --global enable dbus-broker
 arch-chroot /mnt systemctl --global enable journalctl-notify
 arch-chroot /mnt systemctl --global enable pipewire
 arch-chroot /mnt systemctl --global enable wireplumber
+arch-chroot /mnt systemctl --global enable podman.socket
+arch-chroot /mnt systemctl --global enable podman-restart
 arch-chroot /mnt systemctl --global enable gammastep
 
 # Run userspace configuration

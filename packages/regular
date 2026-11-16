@@ -47,8 +47,9 @@ syncthing
 rsync
 
 # Virtualization/Containerization
-docker
-docker-compose
+podman
+podman-compose
+fuse-overlayfs
 qemu-full
 virt-manager
 swtpm # TPM emulation for virtual machines
