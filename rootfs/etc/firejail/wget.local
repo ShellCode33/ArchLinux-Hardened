@@ -1,0 +1,2 @@
+# Allow route-information queries during wget hostname resolution.
+protocol netlink

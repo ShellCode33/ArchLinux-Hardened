@@ -1,8 +1,6 @@
 #!/bin/bash
 proxy="http://127.0.0.1:8080"
 
-echo "Running $1 through local proxy $proxy"
-
 export HTTP{S,}_PROXY="$proxy"
 export http{s,}_proxy="$proxy"
 
