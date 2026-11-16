@@ -29,6 +29,10 @@ wget
 dnsmasq # used by libvirtd
 glider # HTTP proxy used for the network opt-in security measure
 socat # used to relay SSH through the HTTP proxy
+nmap
+qbittorrent
+wireshark-qt
+wireshark-cli
 
 # Security
 apparmor
@@ -40,12 +44,14 @@ keepassxc
 # Backup
 restic
 syncthing
+rsync
 
 # Virtualization/Containerization
 docker
 docker-compose
 qemu-full
 virt-manager
+swtpm # TPM emulation for virtual machines
 
 # Monitoring
 audit # Log system failures and important security events
@@ -55,6 +61,7 @@ htop
 iotop
 lsof
 nvtop # htop equivalent for GPUs
+vulkan-tools
 
 # Desktop environment
 sway
@@ -72,6 +79,7 @@ bemenu-wayland
 python-i3ipc # Interact with Sway using Python
 python-psutil # status-bar requirement
 libnotify # notify-send
+libappindicator
 qt5-wayland
 qt6-wayland
 slurp # Select monitor region
@@ -105,6 +113,9 @@ lazygit
 rustup
 rust-analyzer
 clang
+meson
+graphviz
+android-tools
 ipython
 python-pip
 man-db
@@ -115,6 +126,9 @@ npm # for nvim plugins
 gdb
 pwndbg
 strace
+perf
+binwalk
+perl-image-exiftool
 
 # File viewers/editors
 zathura
@@ -125,6 +139,10 @@ gimp
 imagemagick
 tree
 fzf
+libreoffice-fresh
+thunar
+tumbler
+vlc
 
 # CLI
 zsh
