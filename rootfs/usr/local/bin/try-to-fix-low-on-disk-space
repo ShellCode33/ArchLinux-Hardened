@@ -10,11 +10,11 @@ LOCK_DIR=/tmp/.try-to-fix-low-on-disk-space.lock
 # this is why we use it as a mutex to prevent
 # multiple instances of this script to run.
 if ! mkdir -- "$LOCK_DIR"; then
-	exit 0
+  exit 0
 fi
 
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-echo "NOTIFY {\"urgency\": \"critical\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Starting to take action...\\nSpace left on device: $space_left\"}"
+printf '%s\n' "NOTIFY {\"urgency\": \"critical\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Starting to take action...\\nSpace left on device: $space_left\"}"
 
 # Agressively cleaning pacman cache
 pacman --noconfirm -Scc
@@ -35,7 +35,7 @@ sync
 
 # Inform the admin what space is left after the cleanup
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-echo "NOTIFY {\"urgency\": \"normal\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Necessary actions have been taken\\nSpace left on device: $space_left\"}"
+printf '%s\n' "NOTIFY {\"urgency\": \"normal\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Necessary actions have been taken\\nSpace left on device: $space_left\"}"
 
 # Tell auditd to try to resume logging
 kill -SIGUSR2 $PPID

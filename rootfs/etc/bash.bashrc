@@ -6,4 +6,5 @@
 export HISTFILE="/home/$USER/.cache/bash_history"
 export PS1='\[\e[1;92m\][\u@\h \w]\[\e[0m\] \$ '
 
-[ -r /usr/share/bash-completion/bash_completion   ] && . /usr/share/bash-completion/bash_completion
+# shellcheck source=/dev/null
+[ -r /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion

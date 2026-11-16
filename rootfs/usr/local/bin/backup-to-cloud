@@ -6,17 +6,17 @@ You probably want to use Restic instead of this home-made script.
 See: /usr/local/bin/restic-backup-to-cloud
 """
 
-import os
-import sys
-import json
 import hashlib
-import psutil
-import socket
+import json
+import os
 import os.path
-from time import sleep
+import socket
+import sys
 from datetime import datetime
-from typing import List
-from subprocess import run, CalledProcessError, PIPE, DEVNULL
+from subprocess import DEVNULL, PIPE, CalledProcessError, run
+from time import sleep
+
+import psutil
 
 # Do not edit, create a ~/.ssh/config entry
 SERVER_HOST = "backup-server"
@@ -28,6 +28,7 @@ BACKUP_PREFIX = f"backup-home-{USERNAME}-{HOSTNAME}"
 # Use the ssb key ID from the output of `gpg --list-secret-keys --keyid-format=long`
 GPG_RECIPIENT = os.environ["GPG_RECIPIENT"]
 
+
 def notify(title: str, body: str, urgency: str = "normal"):
 
     if urgency == "critical":
@@ -36,13 +37,18 @@ def notify(title: str, body: str, urgency: str = "normal"):
         icon = "synology-cloud-station-backup"
 
     # See /usr/local/bin/journalctl-notify
-    print("NOTIFY", json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}))
+    print(
+        "NOTIFY",
+        json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}),
+    )
+
 
 def cleanup() -> None:
     for file in os.listdir(f"/home/{USERNAME}"):
         if file.startswith(BACKUP_PREFIX):
             os.unlink(f"/home/{USERNAME}/{file}")
             print(f"Removed /home/{USERNAME}/{file}")
+
 
 def backup_home() -> str:
     """
@@ -55,43 +61,60 @@ def backup_home() -> str:
 
     print(f"Creating /home/{USERNAME}/{archive_name} ...")
 
-    tar_process = run(["/usr/bin/tar",
-                       f"--exclude=home/{USERNAME}/{BACKUP_PREFIX}*",
-                       "--create",
-                       "--gzip",
-                       "--preserve-permissions",
-                       "--warning=no-file-changed",
-                       "--warning=no-file-ignored",
-                       f"--file=home/{USERNAME}/{archive_name}",
-                       f"home/{USERNAME}"],
-                      cwd=f"/",
-                      stderr=PIPE,
-                      stdout=DEVNULL)
+    tar_process = run(
+        [
+            "/usr/bin/tar",
+            f"--exclude=home/{USERNAME}/{BACKUP_PREFIX}*",
+            "--create",
+            "--gzip",
+            "--preserve-permissions",
+            "--warning=no-file-changed",
+            "--warning=no-file-ignored",
+            f"--file=home/{USERNAME}/{archive_name}",
+            f"home/{USERNAME}",
+        ],
+        cwd="/",
+        stderr=PIPE,
+        stdout=DEVNULL,
+    )
 
     if tar_process.returncode == 2:
-        raise CalledProcessError(returncode=tar_process.returncode,
-                                 cmd=tar_process.args,
-                                 output=tar_process.stdout,
-                                 stderr=tar_process.stderr)
+        raise CalledProcessError(
+            returncode=tar_process.returncode,
+            cmd=tar_process.args,
+            output=tar_process.stdout,
+            stderr=tar_process.stderr,
+        )
 
     return f"/home/{USERNAME}/{archive_name}"
+
 
 def encrypt(filepath: str) -> str:
     encrypted_filepath = f"{filepath}.gpg"
 
     print(f"Encrypting {filepath} ...")
 
-    run(["/usr/bin/gpg",
-         "--recipient", GPG_RECIPIENT,
-         "--cipher-algo", "AES256",
-         "--compress-algo", "none",
-         "--output", encrypted_filepath,
-         "--encrypt", filepath],
+    run(
+        [
+            "/usr/bin/gpg",
+            "--recipient",
+            GPG_RECIPIENT,
+            "--cipher-algo",
+            "AES256",
+            "--compress-algo",
+            "none",
+            "--output",
+            encrypted_filepath,
+            "--encrypt",
+            filepath,
+        ],
         stderr=PIPE,
         stdout=DEVNULL,
-        check=True)
+        check=True,
+    )
 
     return encrypted_filepath
+
 
 def process_sha1sum(encrypted_filepath: str, write_to_disk=True) -> str:
 
@@ -107,11 +130,12 @@ def process_sha1sum(encrypted_filepath: str, write_to_disk=True) -> str:
 
     return sha1sum
 
-def ssh_until_success(command: List[str]) -> None:
+
+def ssh_until_success(command: list[str]) -> None:
     while True:
         try:
             run(command, stderr=PIPE, stdout=DEVNULL, check=True)
-            break # Command succeeded without exception, break out of the loop
+            break  # Command succeeded without exception, break out of the loop
         except CalledProcessError as cpe:
             # If we get this error, it means the SSH key is not yet in the SSH agent,
             # most probably because KeePassXC database is still locked.
@@ -119,23 +143,43 @@ def ssh_until_success(command: List[str]) -> None:
             if b"Permission denied (publickey)" not in cpe.stderr:
                 raise
 
-            notify("SYSTEM MAINTENANCE",
-                   "Unable to access remote backup server, make sure the SSH key is in ssh-agent.\n\nIs KeePassXC unlocked ?",
-                   urgency="critical")
+            notify(
+                "SYSTEM MAINTENANCE",
+                "Unable to access remote backup server, make sure the SSH key is in ssh-agent.\n\nIs KeePassXC unlocked ?",
+                urgency="critical",
+            )
 
             sleep(10)
+
 
 def upload(encrypted_filepath: str, sha1sum: str) -> None:
 
     print(f"Uploading {encrypted_filepath} ...")
     encrypted_filename = os.path.basename(encrypted_filepath)
 
-    ssh_until_success(["/usr/bin/ssh", "-oBatchMode=yes", SERVER_HOST, f"mkdir -p {HOSTNAME}"])
-    ssh_until_success(["/usr/bin/scp", "-oBatchMode=yes", encrypted_filepath, f"{SERVER_HOST}:~/{HOSTNAME}/"])
+    ssh_until_success(
+        ["/usr/bin/ssh", "-oBatchMode=yes", SERVER_HOST, f"mkdir -p {HOSTNAME}"]
+    )
+    ssh_until_success(
+        [
+            "/usr/bin/scp",
+            "-oBatchMode=yes",
+            encrypted_filepath,
+            f"{SERVER_HOST}:~/{HOSTNAME}/",
+        ]
+    )
 
     # The sha1 file marks the end of the backup process,
     # this file is expected by the `harden-backup` script which runs server-side
-    ssh_until_success(["/usr/bin/ssh", "-oBatchMode=yes", SERVER_HOST, f"echo -n {sha1sum} > {HOSTNAME}/{encrypted_filename}.sha1"])
+    ssh_until_success(
+        [
+            "/usr/bin/ssh",
+            "-oBatchMode=yes",
+            SERVER_HOST,
+            f"echo -n {sha1sum} > {HOSTNAME}/{encrypted_filename}.sha1",
+        ]
+    )
+
 
 def process_not_uploaded_backups() -> None:
     """
@@ -147,12 +191,17 @@ def process_not_uploaded_backups() -> None:
     """
 
     for file in os.listdir(f"/home/{USERNAME}"):
-        if file.startswith(BACKUP_PREFIX) and file.endswith(".gpg") and os.path.exists(f"/home/{USERNAME}/{file}.sha1"):
-
-            with open(f"/home/{USERNAME}/{file}.sha1", "r") as stream:
+        if (
+            file.startswith(BACKUP_PREFIX)
+            and file.endswith(".gpg")
+            and os.path.exists(f"/home/{USERNAME}/{file}.sha1")
+        ):
+            with open(f"/home/{USERNAME}/{file}.sha1") as stream:
                 existing_sha1 = stream.read().strip()
 
-            actual_sha1sum = process_sha1sum(f"/home/{USERNAME}/{file}", write_to_disk=False)
+            actual_sha1sum = process_sha1sum(
+                f"/home/{USERNAME}/{file}", write_to_disk=False
+            )
 
             if existing_sha1 != actual_sha1sum:
                 print("Files sha1sum don't match, ignoring...")
@@ -160,11 +209,14 @@ def process_not_uploaded_backups() -> None:
 
             upload(f"/home/{USERNAME}/{file}", actual_sha1sum)
 
+
 def main() -> None:
 
     if GPG_RECIPIENT is None:
         print("Environment variable GPG_RECIPIENT not set.")
-        print("Use the ID from your subkey (ssb) in the output of 'gpg --list-secret-keys --keyid-format long'")
+        print(
+            "Use the ID from your subkey (ssb) in the output of 'gpg --list-secret-keys --keyid-format long'"
+        )
         sys.exit(1)
 
     notify("SYSTEM MAINTENANCE", "Backup of the home folder in progress...")
@@ -189,13 +241,22 @@ def main() -> None:
         return_code = 0
     except CalledProcessError as cpe:
         error_str = cpe.stderr.decode()
-        notify("SYSTEM MAINTENANCE", f"Backup of the home folder failed with:\n\n" + error_str, urgency="critical")
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Backup of the home folder failed with:\n\n" + error_str,
+            urgency="critical",
+        )
         return_code = 1
     except Exception as exc:
-        notify("SYSTEM MAINTENANCE", f"Backup of the home folder failed with:\n\n" + str(exc), urgency="critical")
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Backup of the home folder failed with:\n\n" + str(exc),
+            urgency="critical",
+        )
         return_code = 1
 
     sys.exit(return_code)
+
 
 if __name__ == "__main__":
     main()

@@ -3,23 +3,22 @@
 """Preview and apply tracked rootfs configuration to the installed system."""
 
 import argparse
-from dataclasses import dataclass, replace
 import difflib
-from functools import cache
 import gzip
 import hashlib
 import logging
 import os
-from pathlib import Path
 import pwd
 import re
 import stat
 import subprocess
 import sys
 import tempfile
-from typing import ClassVar, override
 import zlib
-
+from dataclasses import dataclass, replace
+from functools import cache
+from pathlib import Path
+from typing import ClassVar, override
 
 logger = logging.getLogger("sync")
 
@@ -49,7 +48,11 @@ class ColoredFormatter(logging.Formatter):
 
 def configure_logging() -> None:
     handler = logging.StreamHandler(sys.stderr)
-    color = sys.stderr.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb"
+    color = (
+        sys.stderr.isatty()
+        and "NO_COLOR" not in os.environ
+        and os.environ.get("TERM") != "dumb"
+    )
     handler.setFormatter(ColoredFormatter(use_color=color))
     logger.handlers.clear()
     logger.addHandler(handler)
@@ -88,8 +91,13 @@ def entry_version(entry: Entry) -> EntryVersion:
         return None
     info = entry.metadata
     return entry.data, (
-        info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
-        info.st_mtime_ns, info.st_ctime_ns,
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_uid,
+        info.st_gid,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
     )
 
 
@@ -113,12 +121,17 @@ def check_parents(path: Path) -> None:
 
 def render_diff(path: Path, before: Entry, after: PresentEntry) -> str:
     if isinstance(after, SymlinkEntry):
-        old = repr(before.data) if isinstance(before, SymlinkEntry) else "(not a symlink)"
+        old = (
+            repr(before.data) if isinstance(before, SymlinkEntry) else "(not a symlink)"
+        )
         return f"{path}: {old} -> symlink {after.data!r}\n"
     lines = difflib.unified_diff(
-        (before.data if isinstance(before, FileEntry) else b"").decode("utf-8", errors="backslashreplace").splitlines(keepends=True),
+        (before.data if isinstance(before, FileEntry) else b"")
+        .decode("utf-8", errors="backslashreplace")
+        .splitlines(keepends=True),
         after.data.decode("utf-8", errors="backslashreplace").splitlines(keepends=True),
-        fromfile=f"{path} (installed)", tofile=f"{path} (proposed)",
+        fromfile=f"{path} (installed)",
+        tofile=f"{path} (proposed)",
     )
     heading = f"\n{path}: {'new file' if before is None else 'modified'}\n"
     return heading + "".join(
@@ -132,7 +145,11 @@ def save_diffs(changes: list[Change], user: str | None) -> Path | None:
         return None
     # Keep the diff after exit, private to the user who will review it.
     with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", prefix="archlinux-sync-", suffix=".diff", delete=False,
+        mode="w",
+        encoding="utf-8",
+        prefix="archlinux-sync-",
+        suffix=".diff",
+        delete=False,
     ) as output:
         path = Path(output.name)
         try:
@@ -152,7 +169,9 @@ def apply_change(path: Path, before: Entry, after: PresentEntry) -> None:
     check_parents(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
     # Stage on the destination filesystem, then publish the complete file atomically.
-    with tempfile.TemporaryDirectory(prefix=".archlinux-sync-", dir=path.parent) as directory:
+    with tempfile.TemporaryDirectory(
+        prefix=".archlinux-sync-", dir=path.parent
+    ) as directory:
         staged = Path(directory) / "file"
         if isinstance(after, SymlinkEntry):
             staged.symlink_to(after.data)
@@ -166,7 +185,9 @@ def apply_change(path: Path, before: Entry, after: PresentEntry) -> None:
                     os.setxattr(staged, name, os.getxattr(path, name))
             else:
                 mode = 0o755 if after.metadata.st_mode & 0o111 else 0o644
-                if path == Path("/etc/sudoers") or path.parent == Path("/etc/sudoers.d"):
+                if path == Path("/etc/sudoers") or path.parent == Path(
+                    "/etc/sudoers.d"
+                ):
                     mode = 0o440
                 staged.chmod(mode)
         check_parents(path)
@@ -179,45 +200,64 @@ def apply_change(path: Path, before: Entry, after: PresentEntry) -> None:
 def git_paths(repo: Path, *arguments: str) -> list[Path]:
     result = subprocess.run(
         ["git", "-c", f"safe.directory={repo}", *arguments, "--", "rootfs/"],
-        cwd=repo, stdout=subprocess.PIPE, check=True,
+        cwd=repo,
+        stdout=subprocess.PIPE,
+        check=True,
     )
     return [Path(os.fsdecode(item)) for item in result.stdout.split(b"\0") if item]
 
 
 def audit_packages(repo: Path) -> dict[str, str]:
     # Use the actual binary, bypassing the interactive local pacman wrapper.
-    query = subprocess.run(["/usr/bin/pacman", "-Q"], capture_output=True, text=True, check=True)
+    query = subprocess.run(
+        ["/usr/bin/pacman", "-Q"], capture_output=True, text=True, check=True
+    )
     versions = dict(line.split(maxsplit=1) for line in query.stdout.splitlines())
-    query = subprocess.run(["/usr/bin/pacman", "-Qqe"], capture_output=True, text=True, check=True)
+    query = subprocess.run(
+        ["/usr/bin/pacman", "-Qqe"], capture_output=True, text=True, check=True
+    )
     explicit = set(query.stdout.splitlines())
     listed: set[str] = set()
     for name in ("regular", "aur"):
         for line in (repo / "packages" / name).read_text().splitlines():
             listed.update(line.partition("#")[0].split())
     # These are conditional hardware packages, not required on every machine.
-    conditional = set(re.findall(
-        r"^\s*echo\s+([a-z0-9][a-z0-9@._+-]*)\s*(?:>>\s*(?:regular|aur)_packages_to_install)?\s*$",
-        (repo / "install.sh").read_text(), re.MULTILINE,
-    ))
+    conditional = set(
+        re.findall(
+            r"^\s*echo\s+([a-z0-9][a-z0-9@._+-]*)\s*(?:>>\s*(?:regular|aur)_packages_to_install)?\s*$",
+            (repo / "install.sh").read_text(),
+            re.MULTILINE,
+        )
+    )
     missing = listed - versions.keys()
     extra = explicit - listed - conditional - {"yay"}
     if missing:
-        logger.warning("Listed packages are not installed: %s", ", ".join(sorted(missing)))
+        logger.warning(
+            "Listed packages are not installed: %s", ", ".join(sorted(missing))
+        )
     if extra:
-        logger.warning("Explicitly installed packages are not listed: %s", ", ".join(sorted(extra)))
+        logger.warning(
+            "Explicitly installed packages are not listed: %s", ", ".join(sorted(extra))
+        )
     return versions
 
 
 def decode_mtree(value: str) -> str:
     # mtree quotes spaces and other special filename bytes with octal escapes.
-    return os.fsdecode(re.sub(
-        rb"\\([0-7]{3})", lambda match: bytes((int(match[1], 8),)), os.fsencode(value),
-    ))
+    return os.fsdecode(
+        re.sub(
+            rb"\\([0-7]{3})",
+            lambda match: bytes((int(match[1], 8),)),
+            os.fsencode(value),
+        )
+    )
 
 
 def package_file_attributes(manifest: Path, relative: Path) -> dict[str, str]:
     defaults: dict[str, str] = {}
-    with gzip.open(manifest, "rt", encoding="utf-8", errors="surrogateescape") as stream:
+    with gzip.open(
+        manifest, "rt", encoding="utf-8", errors="surrogateescape"
+    ) as stream:
         text = stream.read().replace("\\\n", "")
     for line in text.splitlines():
         fields = line.split()
@@ -239,22 +279,35 @@ def package_file_attributes(manifest: Path, relative: Path) -> dict[str, str]:
 
 def package_file_matches(attributes: dict[str, str], installed: PresentEntry) -> bool:
     if attributes.get("type") == "link" and "link" in attributes:
-        return isinstance(installed, SymlinkEntry) and installed.data == decode_mtree(attributes["link"])
+        return isinstance(installed, SymlinkEntry) and installed.data == decode_mtree(
+            attributes["link"]
+        )
     if attributes.get("type") == "file" and "sha256digest" in attributes:
-        return isinstance(installed, FileEntry) and hashlib.sha256(installed.data).hexdigest() == attributes["sha256digest"]
-    raise ValueError("package manifest has no comparable content checksum or symlink target")
+        return (
+            isinstance(installed, FileEntry)
+            and hashlib.sha256(installed.data).hexdigest() == attributes["sha256digest"]
+        )
+    raise ValueError(
+        "package manifest has no comparable content checksum or symlink target"
+    )
 
 
 @cache
 def package_database() -> Path:
-    query = subprocess.run(["/usr/bin/pacman-conf", "DBPath"], capture_output=True, text=True, check=True)
+    query = subprocess.run(
+        ["/usr/bin/pacman-conf", "DBPath"], capture_output=True, text=True, check=True
+    )
     return Path(query.stdout.strip()) / "local"
 
 
-def package_default(path: Path, versions: dict[str, str]) -> tuple[str, dict[str, str]] | None:
+def package_default(
+    path: Path, versions: dict[str, str]
+) -> tuple[str, dict[str, str]] | None:
     owner = subprocess.run(
         ["/usr/bin/pacman", "-Qoq", "--", str(path)],
-        capture_output=True, text=True, env=os.environ | {"LC_ALL": "C"},
+        capture_output=True,
+        text=True,
+        env=os.environ | {"LC_ALL": "C"},
     )
     if owner.returncode == 1 and "No package owns" in owner.stderr:
         return None
@@ -266,28 +319,65 @@ def package_default(path: Path, versions: dict[str, str]) -> tuple[str, dict[str
     return package, package_file_attributes(manifest, path.relative_to("/"))
 
 
-def audit_permissions(path: Path, installed: FileEntry, versions: dict[str, str]) -> None:
+def audit_permissions(
+    path: Path, installed: FileEntry, versions: dict[str, str]
+) -> None:
     try:
         packaged = package_default(path, versions)
         if packaged is None:
             return
         package, attributes = packaged
         if attributes.get("type") != "file" or "mode" not in attributes:
-            raise ValueError("package manifest has no regular-file permissions to compare")
+            raise ValueError(
+                "package manifest has no regular-file permissions to compare"
+            )
         expected = int(attributes["mode"], 8)
         actual = stat.S_IMODE(installed.metadata.st_mode)
         if actual != expected:
             logger.warning(
                 "Permissions differ from package %s: %s (live %04o, packaged %04o); preserving live permissions",
-                package, path, actual, expected,
+                package,
+                path,
+                actual,
+                expected,
             )
-    except (OSError, ValueError, EOFError, zlib.error, subprocess.CalledProcessError) as error:
+    except (
+        OSError,
+        ValueError,
+        EOFError,
+        zlib.error,
+        subprocess.CalledProcessError,
+    ) as error:
         logger.warning("Cannot verify package permissions for %s: %s", path, error)
 
 
-def audit_removed_files(repo: Path, tracked: set[Path], active: set[Path], versions: dict[str, str]) -> None:
-    removed = set(git_paths(repo, "log", "--format=", "--name-only", "-z", "--diff-filter=D", "--no-renames", "HEAD"))
-    removed.update(git_paths(repo, "diff", "--cached", "--name-only", "-z", "--diff-filter=D", "--no-renames", "HEAD"))
+def audit_removed_files(
+    repo: Path, tracked: set[Path], active: set[Path], versions: dict[str, str]
+) -> None:
+    removed = set(
+        git_paths(
+            repo,
+            "log",
+            "--format=",
+            "--name-only",
+            "-z",
+            "--diff-filter=D",
+            "--no-renames",
+            "HEAD",
+        )
+    )
+    removed.update(
+        git_paths(
+            repo,
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--diff-filter=D",
+            "--no-renames",
+            "HEAD",
+        )
+    )
     removed.update(tracked - active)
     for relative in sorted(removed - active):
         destination = Path("/") / relative.relative_to("rootfs")
@@ -297,12 +387,25 @@ def audit_removed_files(repo: Path, tracked: set[Path], active: set[Path], versi
                 continue
             packaged = package_default(destination, versions)
             if packaged is None:
-                logger.warning("Removed from repository but still present and unowned: %s", destination)
+                logger.warning(
+                    "Removed from repository but still present and unowned: %s",
+                    destination,
+                )
                 continue
             package, attributes = packaged
             if not package_file_matches(attributes, installed):
-                logger.warning("Removed from repository; live contents differ from package %s: %s", package, destination)
-        except (OSError, ValueError, EOFError, zlib.error, subprocess.CalledProcessError) as error:
+                logger.warning(
+                    "Removed from repository; live contents differ from package %s: %s",
+                    package,
+                    destination,
+                )
+        except (
+            OSError,
+            ValueError,
+            EOFError,
+            zlib.error,
+            subprocess.CalledProcessError,
+        ) as error:
             logger.warning("Cannot verify removed file %s: %s", destination, error)
 
 
@@ -310,10 +413,18 @@ def main() -> int:
     configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--dry-run", action="store_true", help="preview changes (default)")
-    mode.add_argument("--apply", action="store_true", help="apply changes; requires root")
-    parser.add_argument("--yes", action="store_true", help="skip confirmation with --apply")
-    parser.add_argument("--user", help="username for placeholders; defaults to SUDO_USER or your login")
+    mode.add_argument(
+        "--dry-run", action="store_true", help="preview changes (default)"
+    )
+    mode.add_argument(
+        "--apply", action="store_true", help="apply changes; requires root"
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="skip confirmation with --apply"
+    )
+    parser.add_argument(
+        "--user", help="username for placeholders; defaults to SUDO_USER or your login"
+    )
     args = parser.parse_args(namespace=Arguments())
     if args.yes and not args.apply:
         parser.error("--yes requires --apply")
@@ -333,7 +444,9 @@ def main() -> int:
         logger.warning("Ignoring untracked file: %s", path)
     tracked = set(git_paths(repo, "ls-files", "-z"))
     # Include working-tree deletions in the warnings, never in the apply plan.
-    active = {path for path in tracked if (repo / path).exists() or (repo / path).is_symlink()}
+    active = {
+        path for path in tracked if (repo / path).exists() or (repo / path).is_symlink()
+    }
     versions: dict[str, str] = {}
     try:
         versions = audit_packages(repo)
@@ -358,7 +471,8 @@ def main() -> int:
             unreadable += 1
             logger.warning(
                 "Cannot read %s: %s; skipped (unchecked)",
-                error.filename or destination, error.strerror or str(error),
+                error.filename or destination,
+                error.strerror or str(error),
             )
             continue
         if source is None:
@@ -366,22 +480,30 @@ def main() -> int:
         if isinstance(source, FileEntry) and b"username_placeholder" in source.data:
             if not user:
                 parser.error("use --user USER when running directly as root")
-            source = replace(source, data=source.data.replace(b"username_placeholder", os.fsencode(user)))
+            source = replace(
+                source,
+                data=source.data.replace(b"username_placeholder", os.fsencode(user)),
+            )
         if isinstance(installed, FileEntry):
             audit_permissions(destination, installed, versions)
         if isinstance(installed, SymlinkEntry) and isinstance(source, FileEntry):
-            raise ValueError(f"Refusing to overwrite a symlink with a regular file: {destination}")
+            raise ValueError(
+                f"Refusing to overwrite a symlink with a regular file: {destination}"
+            )
         if installed is not None and installed.data == source.data:
             unchanged += 1
         else:
             changes.append((destination, installed, source))
 
     save_diffs(changes, os.environ.get("SUDO_USER") or user)
-    logger.info("%d changed, %d unchanged, %d unchecked.", len(changes), unchanged, unreadable)
+    logger.info(
+        "%d changed, %d unchanged, %d unchecked.", len(changes), unchanged, unreadable
+    )
     if unreadable:
         logger.warning(
             "Preview incomplete: %d unreadable file%s. Run with sudo for a complete preview.",
-            unreadable, "" if unreadable == 1 else "s",
+            unreadable,
+            "" if unreadable == 1 else "s",
         )
     if not changes:
         return 1 if unreadable else 0

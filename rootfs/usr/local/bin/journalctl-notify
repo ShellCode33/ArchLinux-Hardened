@@ -104,7 +104,7 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
 
     try:
         src_addr = content["SRC"]
-        src_port = content["SPT"]
+        _src_port = content["SPT"]
         dst_addr = content["DST"]
         dst_port = content["DPT"]
         proto = content["PROTO"]
@@ -204,7 +204,7 @@ async def main() -> None:
                         journal.stdout.readline(),
                         timeout=1,
                     )  # The lower the timeout, the higher the CPU usage
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # No new line available yet, try the next journal by breaking out
                     break
 

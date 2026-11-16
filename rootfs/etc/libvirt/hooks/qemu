@@ -29,7 +29,11 @@ def start_display_manager() -> None:
             check=True,
         )
         if os.path.exists("/usr/local/bin/backlightd"):
-            run(["/usr/bin/systemctl", "start", "backlightd"], check=True, capture_output=True)
+            run(
+                ["/usr/bin/systemctl", "start", "backlightd"],
+                check=True,
+                capture_output=True,
+            )
         logging.info(
             "User was logged in successfully, graphical applications can now run again",
         )
@@ -50,7 +54,11 @@ def stop_display_manager() -> None:
 
         # backlightd holds GPU devices open, preventing driver unloading.
         if os.path.exists("/usr/local/bin/backlightd"):
-            run(["/usr/bin/systemctl", "stop", "backlightd"], check=True, capture_output=True)
+            run(
+                ["/usr/bin/systemctl", "stop", "backlightd"],
+                check=True,
+                capture_output=True,
+            )
         logging.info(
             "User was logged out successfully, "
             "graphical applications are not running anymore",

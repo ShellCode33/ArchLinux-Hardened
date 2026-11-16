@@ -8,4 +8,3 @@ ExecStart=/usr/bin/gammastep
 
 [Install]
 WantedBy=graphical-session.target
-

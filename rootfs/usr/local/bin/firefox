@@ -6,7 +6,6 @@ import re
 import sys
 from configparser import ConfigParser
 from io import TextIOWrapper
-from typing import Dict, List, Optional, Tuple
 
 import requests
 
@@ -17,7 +16,7 @@ USER_JS_URL = "https://raw.githubusercontent.com/arkenfox/user.js/master/user.js
 USER_PREF_REGEX = r'user_pref\("(?P<pref_key>.+)",\s*"?(?P<pref_value>[^"\)]+)'
 
 
-def get_profiles() -> List[Tuple[str, str]]:
+def get_profiles() -> list[tuple[str, str]]:
     profiles = []
 
     config = ConfigParser()
@@ -79,7 +78,7 @@ def clean(profile_path: str) -> None:
 def _find_proxy_in_stream(
     stream: TextIOWrapper,
     scheme: str,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     proxy_host = None
     proxy_port = None
 
@@ -98,7 +97,7 @@ def _find_proxy_in_stream(
     return proxy_host, proxy_port
 
 
-def find_proxies() -> Dict[str, str]:
+def find_proxies() -> dict[str, str]:
     proxies = {}
 
     for scheme in ("http", "ssl"):

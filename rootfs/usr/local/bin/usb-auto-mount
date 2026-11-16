@@ -1,10 +1,10 @@
 #!/usr/bin/python3 -u
 
+import json
 import os
 import sys
-import json
 from subprocess import DEVNULL, PIPE, CalledProcessError, run
-from typing import Dict, Optional, Set
+
 
 def notify(body: str, urgency: str = "normal") -> None:
 
@@ -14,58 +14,99 @@ def notify(body: str, urgency: str = "normal") -> None:
         icon = "drive-removable-media-usb"
 
     # See /usr/local/bin/journalctl-notify
-    print("NOTIFY", json.dumps({"title": "USB DEVICE MANAGER", "body": body, "urgency": urgency, "icon": icon}))
+    print(
+        "NOTIFY",
+        json.dumps(
+            {
+                "title": "USB DEVICE MANAGER",
+                "body": body,
+                "urgency": urgency,
+                "icon": icon,
+            }
+        ),
+    )
+
 
 def mount_encrypted(encrypted_part_uuid: str, luks_key_path: str) -> None:
     try:
-        run(["/usr/bin/cryptsetup",
-             "open",
-             f"/dev/disk/by-uuid/{encrypted_part_uuid}",
-             encrypted_part_uuid,
-             "--key-file", luks_key_path],
-            stdout=DEVNULL, stderr=PIPE, check=True)
+        run(
+            [
+                "/usr/bin/cryptsetup",
+                "open",
+                f"/dev/disk/by-uuid/{encrypted_part_uuid}",
+                encrypted_part_uuid,
+                "--key-file",
+                luks_key_path,
+            ],
+            stdout=DEVNULL,
+            stderr=PIPE,
+            check=True,
+        )
     except CalledProcessError as cpe:
         error_str = cpe.stderr.decode()
 
         # Allow already exists error
         if "already exists" not in error_str:
-            notify(f"Command 'cryptsetup open' failed with:\n\n" + error_str, urgency="critical")
+            notify(
+                "Command 'cryptsetup open' failed with:\n\n" + error_str,
+                urgency="critical",
+            )
             raise
 
     try:
-        run(["/usr/bin/mount",
-             "--mkdir",
-             f"/dev/mapper/{encrypted_part_uuid}"],
-            stdout=DEVNULL, stderr=PIPE, check=True)
+        run(
+            ["/usr/bin/mount", "--mkdir", f"/dev/mapper/{encrypted_part_uuid}"],
+            stdout=DEVNULL,
+            stderr=PIPE,
+            check=True,
+        )
     except CalledProcessError as cpe:
         error_str = cpe.stderr.decode()
-        notify(f"Command 'mount /dev/mapper/{encrypted_part_uuid}' failed with:\n\n" + error_str, urgency="critical")
+        notify(
+            f"Command 'mount /dev/mapper/{encrypted_part_uuid}' failed with:\n\n"
+            + error_str,
+            urgency="critical",
+        )
         raise
+
 
 def mount_not_encrypted(partition_uuid: str) -> None:
     try:
-        run(["/usr/bin/mount", "--mkdir", f"UUID={partition_uuid}"],
-            stdout=DEVNULL, stderr=PIPE, check=True)
+        run(
+            ["/usr/bin/mount", "--mkdir", f"UUID={partition_uuid}"],
+            stdout=DEVNULL,
+            stderr=PIPE,
+            check=True,
+        )
     except CalledProcessError as cpe:
         error_str = cpe.stderr.decode()
 
         if "can't find in /etc/fstab" in error_str:
             print("Device not in /etc/fstab, ignoring it")
         else:
-            notify(f"Command 'mount UUID={partition_uuid}' failed with:\n\n" + error_str, urgency="critical")
+            notify(
+                f"Command 'mount UUID={partition_uuid}' failed with:\n\n" + error_str,
+                urgency="critical",
+            )
             raise
 
-def parse_device_variables(block_device: str) -> Dict[str, str]:
+
+def parse_device_variables(block_device: str) -> dict[str, str]:
     device_variables = {}
 
     try:
-        proc = run(["udevadm", "info", "--query=env", "--export", f"/dev/{block_device}"],
-                check=True, stdout=PIPE, stderr=PIPE)
+        proc = run(
+            ["udevadm", "info", "--query=env", "--export", f"/dev/{block_device}"],
+            check=True,
+            capture_output=True,
+        )
     except CalledProcessError as cpe:
         error_str = cpe.stderr.decode()
-        notify(f"Command 'udevadm info' failed with:\n\n" + error_str, urgency="critical")
+        notify(
+            "Command 'udevadm info' failed with:\n\n" + error_str, urgency="critical"
+        )
         raise
-    
+
     for line in proc.stdout.decode().splitlines():
         key, value = line.split("=", maxsplit=1)
 
@@ -76,8 +117,9 @@ def parse_device_variables(block_device: str) -> Dict[str, str]:
 
     return device_variables
 
-def find_luks_key_path(partition_uuid: str) -> Optional[str]:
-    with open("/etc/crypttab", "r") as stream:
+
+def find_luks_key_path(partition_uuid: str) -> str | None:
+    with open("/etc/crypttab") as stream:
         for line in stream:
             line = line.strip()
 
@@ -97,14 +139,20 @@ def find_luks_key_path(partition_uuid: str) -> Optional[str]:
 
     return None
 
-def find_mount_point(block_device: str) -> Optional[str]:
+
+def find_mount_point(block_device: str) -> str | None:
     try:
-        proc = run(["/usr/bin/lsblk",
-                    "--noheadings",
-                    "--list",
-                    "--output=name,mountpoints",
-                    f"/dev/{block_device}"],
-                   stdout=PIPE, stderr=PIPE, check=True)
+        proc = run(
+            [
+                "/usr/bin/lsblk",
+                "--noheadings",
+                "--list",
+                "--output=name,mountpoints",
+                f"/dev/{block_device}",
+            ],
+            capture_output=True,
+            check=True,
+        )
 
     except CalledProcessError:
         return None
@@ -118,6 +166,7 @@ def find_mount_point(block_device: str) -> Optional[str]:
             return tokens[1]
 
     return None
+
 
 def handle_auto_mount(block_device: str) -> None:
 
@@ -135,7 +184,8 @@ def handle_auto_mount(block_device: str) -> None:
     if mount_point:
         notify(f"Device /dev/{block_device} mounted successfully to {mount_point}")
 
-def clean_cryptsetup_leftovers() -> Set[str]:
+
+def clean_cryptsetup_leftovers() -> set[str]:
     """
     If hot-pluggable drives are removed from the computer, there will be
     left over entries in /dev/mapper this function aims to remove entries
@@ -153,7 +203,7 @@ def clean_cryptsetup_leftovers() -> Set[str]:
         for line in stdout.splitlines():
             line = line.strip()
             line = line.replace(" ", "")
-            
+
             if line == "device:(null)":
                 # Leftover detected, closing it
                 run(["/usr/bin/cryptsetup", "close", device])
@@ -162,10 +212,11 @@ def clean_cryptsetup_leftovers() -> Set[str]:
 
     return removed_devices
 
+
 def cleanup_mounts(block_device: str) -> None:
     removed_luks_devices = clean_cryptsetup_leftovers()
 
-    with open("/etc/mtab", "r") as stream:
+    with open("/etc/mtab") as stream:
         for line in stream:
             tokens = line.split()
 
@@ -181,6 +232,7 @@ def cleanup_mounts(block_device: str) -> None:
                     os.rmdir(mount_point)
                 except OSError as ose:
                     print(str(ose))
+
 
 def main():
 
@@ -201,6 +253,7 @@ def main():
 
     else:
         raise ValueError("Unknown action type")
+
 
 if __name__ == "__main__":
     main()

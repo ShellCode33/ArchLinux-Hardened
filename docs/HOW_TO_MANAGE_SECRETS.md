@@ -3,7 +3,6 @@
 I think everyone agrees that typing passwords is annoying, especially when you have long and complex passphrases.
 This tutorial aims to show you how to securely manage different kinds of secrets, so that you have to type only one password: [KeePassXC](https://keepassxc.org)'s.
 
-
 ## SSH Keys
 
 Prerequisit: being able to SSH into your server using your SSH keypair.
@@ -20,16 +19,16 @@ The login shell is the shell assigned to your user in `/etc/passwd`. The line ab
 
 The eval statement will set the `SSH_AUTH_SOCK` environment variable for all the programs you run. You must logout for these changes to propagate.
 
-Now we must enable the SSH Agent integration in KeePassXC. Head over to the settings section and click on *"SSH Agent"*.
+Now we must enable the SSH Agent integration in KeePassXC. Head over to the settings section and click on _"SSH Agent"_.
 
-You have nothing else to do but to tick *"Enable SSH Agent integration"*, you should see a green dialog telling you that the connection with ssh-agent is working properly.
+You have nothing else to do but to tick _"Enable SSH Agent integration"_, you should see a green dialog telling you that the connection with ssh-agent is working properly.
 
-Now let's create a new entry in KeePassXC which contains the password of your SSH private key, while creating the entry, you should see a *"SSH Agent"* tab, click on it, make sure the following is ticked:
+Now let's create a new entry in KeePassXC which contains the password of your SSH private key, while creating the entry, you should see a _"SSH Agent"_ tab, click on it, make sure the following is ticked:
 
 - Add key to agent when database is opened/unlocked
 - Remove key from agent when database is closed/unlocked
 
-Under the *"Private key"* section, choose the *"External file"* radio button, click on *"Browse..."* and pick your private key (the one that **doesn't** end with `.pub.`).
+Under the _"Private key"_ section, choose the _"External file"_ radio button, click on _"Browse..."_ and pick your private key (the one that **doesn't** end with `.pub.`).
 
 You are now good to go, ssh won't ask for your password anymore as long as KeePassXC's database is open.
 
@@ -41,9 +40,9 @@ KeePassXC doesn't support GPG out of the box, but there's a workaround: the libs
 
 Unlock your database and create a new group/folder that will contain all your GPG keys.
 
-Head over to the settings section and click on *"Secret Service Integration"* and tick *"Enable KeePassXC Freedesktop.org Secret Service integration"*.
+Head over to the settings section and click on _"Secret Service Integration"_ and tick _"Enable KeePassXC Freedesktop.org Secret Service integration"_.
 
-Under the *"Exposed database groups"* you should see that an entry is there already but the *"Group"* field is set to *"none"*. Click on the edit button on the right of this row. A new settings dialog will open, head over to the *"Secret Service Integration"* again, and tick *"Expose entries under this group"*, then choose the previously created group.
+Under the _"Exposed database groups"_ you should see that an entry is there already but the _"Group"_ field is set to _"none"_. Click on the edit button on the right of this row. A new settings dialog will open, head over to the _"Secret Service Integration"_ again, and tick _"Expose entries under this group"_, then choose the previously created group.
 
 The Secret Service integration is now setup properly.
 
@@ -113,7 +112,7 @@ Note: a keygrip is basically a unique identifier of your keys. The pinentry prog
 
 We must now head over to KeePassXC and create a new entry for our GPG key. This new entry must be in the previously created group. Add your GPG key password to this entry and name it whatever you like.
 
-Then click on the *"Advanced"* tab, there's a *"Additional attributes"* section.
+Then click on the _"Advanced"_ tab, there's a _"Additional attributes"_ section.
 
 In this section create an entry called `xdg:schema` and set its value to `org.gnupg.Passphrase`.
 
@@ -141,7 +140,7 @@ If an attacker robs your PC while your KeePassXC database is unlocked, the passw
 
 In this chapter we will harden our setup to automatically lock KeePassXC's database when we lock our PC so that secrets don't stay in memory.
 
-Head over to KeePassXC settings, under the *"Security"* tab, make sure *"Lock databases when session is locked or lid is closed"* is ticked.
+Head over to KeePassXC settings, under the _"Security"_ tab, make sure _"Lock databases when session is locked or lid is closed"_ is ticked.
 
 On some desktop environments it will work out of the box (check it), on others, it wont. In my experience, it mostly doesn't work out of the box.
 

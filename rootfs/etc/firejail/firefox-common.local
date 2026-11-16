@@ -4,4 +4,3 @@ dbus-user.talk org.freedesktop.Notifications
 dbus-user.talk org.freedesktop.ScreenSaver
 # Allow screensharing under Wayland.
 dbus-user.talk org.freedesktop.portal.Desktop
-

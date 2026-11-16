@@ -5,6 +5,7 @@ Tips and tricks for managing your btrfs submodules.
 ## Create top-level subvolumes
 
 Mount the top-level subvolume (which is of ID 5):
+
 ```
 sudo mount /dev/mapper/archlinux -o subvolid=5 /mnt
 ```

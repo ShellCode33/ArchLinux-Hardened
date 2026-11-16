@@ -9,9 +9,8 @@ LOCK_DIR=/tmp/.notify-low-on-disk-space.lock
 # Creating a directory is an atomic operation,
 # this is why we use it as a mutex to prevent
 # multiple instances of this script to run.
-if ! mkdir -- "$LOCK_DIR"
-then
-    exit 0
+if ! mkdir -- "$LOCK_DIR"; then
+  exit 0
 fi
 
 sync
