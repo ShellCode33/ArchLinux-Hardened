@@ -12,8 +12,6 @@ import os
 import sys
 from subprocess import run
 
-WALLPAPER = os.environ["HOME"] + "/.local/share/wallpaper.jpg"
-
 # Get your router mac address using "ip neighbor"
 HOME_NETWORK_MAC = "50:6f:0c:73:22:b0"  # CHANGEME
 
@@ -33,16 +31,10 @@ def lock_keepassxc() -> None:
 
 
 def lock_desktop() -> None:
-    os.execv(
-        "/usr/bin/swaylock",
-        [
-            "swaylock",
-            "--ignore-empty-password",
-            "--show-failed-attempts",
-            "--image",
-            WALLPAPER,
-        ],
-    )
+    # Set argv[0] to "lock" for more genericity, so that we can write config files that
+    # will check for the presence of the lock program (e.g. "pidof lock")
+    # without having to rely on the actual under the hood program name.
+    os.execv("/usr/bin/hyprlock", ["lock"])
 
 
 def is_connected_to_home_network() -> bool:

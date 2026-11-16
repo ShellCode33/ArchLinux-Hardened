@@ -8,6 +8,7 @@ linux-hardened-headers
 linux-lts
 linux-firmware
 mkinitcpio
+plymouth
 
 # Filesystem tools
 btrfs-progs
@@ -23,7 +24,8 @@ edk2-shell # useful EFI shell in case things go wrong
 
 # Networking
 iwd
-iptables-nft # includes nftables as a dependency, will automatically uninstall iptables
+iptables # Current Arch package; nftables is installed explicitly below
+nftables
 firefox
 wget
 dnsmasq # used by libvirtd
@@ -57,6 +59,8 @@ swtpm # TPM emulation for virtual machines
 # Monitoring
 audit # Log system failures and important security events
 fwupd # Hardware firmware updates manager
+udisks2 # Required by fwupd to work properly
+udisks2-btrfs
 dunst # Notification daemon
 htop
 iotop
@@ -65,26 +69,29 @@ nvtop # htop equivalent for GPUs
 vulkan-tools
 
 # Desktop environment
-sway
-swaylock
-swayidle
-swaybg
+hyprland
+hyprshutdown # Gracefully close applications before shutdown/reboot
+hyprlock
+hypridle
+hyprcursor
+hyprpaper
+xdg-desktop-portal-hyprland # Screen sharing and desktop integration
+xdg-desktop-portal-gtk # GTK fallback used by Hyprland's portal configuration
+waybar # Status bar
 kanshi # Monitors management
-xdg-desktop-portal-wlr # Enable screen sharing capabilites
-xdg-desktop-portal-gtk # File chooser and others
 flameshot # Take screenshots
 grim # flameshot dependency for Wayland
-wezterm # Terminal emulator
+kitty # Terminal emulator
 wl-clipboard
 bemenu-wayland
-python-i3ipc # Interact with Sway using Python
-python-psutil # status-bar requirement
+python-psutil # Used by maintenance and backup scripts
 libnotify # notify-send
 libappindicator
 qt5-wayland
 qt6-wayland
 slurp # Select monitor region
 brightnessctl # Control monitor brightness
+ddcutil # Control external monitors brightness
 gammastep # decrease blue light during the night
 playerctl # control various media players
 
@@ -99,12 +106,12 @@ openssh
 dbus-broker # Improved DBUS implementation (performance and security)
 
 # Fonts
-ttf-fantasque-nerd
+ttf-jetbrains-mono
+otf-font-awesome
 noto-fonts-emoji
 terminus-font # TTY font
 
 # Themes
-arc-gtk-theme
 papirus-icon-theme
 
 # Dev
@@ -150,14 +157,21 @@ zsh
 dash
 dialog
 ripgrep
+jq
 bat
+
+# Local LLM inference (models are configured manually)
+llama-cpp
+
+# Communication
+signal-desktop
 
 # Other
 most
-p7zip
+7zip
 unzip
 debootstrap # see docs/HOW_TO_SECURE_USB_DEVICE.md
-signal-desktop
 usbutils
 wtype
 dmidecode # used by libvirtd
+pavucontrol # Control audio manually

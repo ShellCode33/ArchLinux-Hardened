@@ -184,7 +184,9 @@ mount --mkdir -o subvol=@var,$mount_opt /dev/mapper/archlinux /mnt/var
 chattr +C /mnt/var # Disable Copy-on-Write for /var
 mount --mkdir -o subvol=@var-log,$mount_opt /dev/mapper/archlinux /mnt/var/log
 mount --mkdir -o subvol=@libvirt,$mount_opt /dev/mapper/archlinux /mnt/var/lib/libvirt
-mount --mkdir -o subvol=@docker,$mount_opt /dev/mapper/archlinux /mnt/var/lib/docker # I feel like using the btrfs storage driver of Docker is not safe yet
+
+# Keep legacy Docker data outside root snapshots.
+mount --mkdir -o subvol=@docker,$mount_opt /dev/mapper/archlinux /mnt/var/lib/docker
 
 # Not worth snapshotting, creating subvolumes for them so that they're not included
 # Be careful not to break a potential future rollback of /@ !!
@@ -206,6 +208,9 @@ if [[ "$gpu_target" != "None" || "$install_igpu_drivers" = "Yes" ]]; then
 
     # Vulkan Installable Client Driver
     echo vulkan-icd-loader
+
+    # GPU inference backend for llama.cpp (CPU support comes with ggml).
+    echo ggml-vulkan
   } >>regular_packages_to_install
 fi
 
@@ -233,10 +238,6 @@ fi
 
 if [[ "$gpu_target" != "None" ]]; then
   {
-
-    # GeForce 8 series and newer GPUs up until GeForce GTX 750
-    # VA-API on Radeon HD 2000 and newer GPUs
-    echo libva-mesa-driver
 
     if [[ "$gpu_target" = "Nvidia" ]]; then
       echo vulkan-nouveau
@@ -300,9 +301,12 @@ echo "fr_FR.UTF-8 UTF-8" >>/mnt/etc/locale.gen
 ln -sf /usr/share/zoneinfo/Europe/Paris /mnt/etc/localtime
 arch-chroot /mnt locale-gen
 
-# For a smoother transition between Plymouth and Sway
+# For a smoother transition between Plymouth and Hyprland
+# An empty system-wide hush file suppresses login messages for all users.
+# Replace existing definitions so only one HUSHLOGIN_FILE setting is active.
+sed -i '/^[[:space:]]*HUSHLOGIN_FILE[[:space:]]/d' /mnt/etc/login.defs
+echo 'HUSHLOGIN_FILE /etc/hushlogins' >>/mnt/etc/login.defs
 touch /mnt/etc/hushlogins
-sed -i 's/HUSHLOGIN_FILE.*/#\0/g' /etc/login.defs
 
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
@@ -364,7 +368,7 @@ if [[ "$gpu_target" = "AMD" ]]; then
   modules="amdgpu"
 elif [[ "$gpu_target" = "Nvidia" ]]; then
   modules="nouveau"
-elif [[ "$cpu_target" = "Intel" && "$install_igpu_drivers" ]]; then
+elif [[ "$cpu_target" = "Intel" && "$install_igpu_drivers" = "Yes" ]]; then
   modules="i915"
 else
   modules=""
@@ -377,11 +381,15 @@ FILES=()
 HOOKS=(base consolefont keymap udev autodetect modconf block plymouth encrypt filesystems keyboard)
 EOF
 
-# This must be done after plymouth is installed from the AUR
+# Rebuild after selecting the Plymouth theme
 arch-chroot /mnt mkinitcpio -p linux-hardened
 
 # Generate UEFI keys, sign kernels, enroll keys, etc.
-echo 'KERNEL=linux-hardened' >/mnt/etc/arch-secure-boot/config
+{
+  echo 'KERNEL=linux-hardened'
+  echo 'SUBVOLUME_ROOT=@'
+  echo 'SUBVOLUME_SNAPSHOT=@snapshots/%1/snapshot'
+} >/mnt/etc/arch-secure-boot/config
 arch-chroot /mnt arch-secure-boot initial-setup
 
 # Hardening
@@ -420,15 +428,17 @@ arch-chroot /mnt systemctl enable btrfs-balance.timer
 arch-chroot /mnt systemctl enable pacman-sync.timer
 arch-chroot /mnt systemctl enable pacman-notify.timer
 arch-chroot /mnt systemctl enable should-reboot-check.timer
+arch-chroot /mnt systemctl enable fwupd-refresh.timer
 
 # Configure systemd user services
 arch-chroot /mnt systemctl --global enable dbus-broker
 arch-chroot /mnt systemctl --global enable journalctl-notify
 arch-chroot /mnt systemctl --global enable pipewire
 arch-chroot /mnt systemctl --global enable wireplumber
+arch-chroot /mnt systemctl --global enable hypridle
 arch-chroot /mnt systemctl --global enable podman.socket
 arch-chroot /mnt systemctl --global enable podman-restart
-arch-chroot /mnt systemctl --global enable gammastep
+arch-chroot /mnt systemctl --global enable llama-server
 
 # Run userspace configuration
 HOME="/home/$user" arch-chroot -u "$user" /mnt /bin/bash -c 'cd && \

@@ -152,22 +152,3 @@ dbus-send --print-reply --dest=org.keepassxc.KeePassXC.MainWindow /keepassxc org
 ```
 
 Therefore you must identify how your session is being locked (which program, and who's reponsible for starting this program).
-
-Personnaly, I use Sway as tiling window manager and I added the following to my config file:
-
-```
-set $lock dbus-send --print-reply --dest=org.keepassxc.KeePassXC.MainWindow /keepassxc org.keepassxc.KeePassXC.MainWindow.lockAllDatabases; swaylock --daemonize --ignore-empty-password --image $wallpaper
-
-# Lock the computer
-bindsym $mod+Ctrl+l exec "$lock"
-
-# This will lock your screen after 300 seconds of inactivity, then turn off
-# your displays after another 300 seconds, and turn your screens back on when
-# resumed. It will also lock your screen before your computer goes to sleep.
-exec swayidle -w \
-         timeout 300 "$lock" \
-         timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
-         before-sleep "$lock"
-```
-
-And boom KeePassXC database is now being locked when I lock my computer.

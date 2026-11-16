@@ -4,5 +4,4 @@
 arch-secure-boot
 
 # You can choose your own theme from there: https://github.com/adi1090x/plymouth-themes
-plymouth
 plymouth-theme-colorful-loop-git
