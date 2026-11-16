@@ -3,6 +3,7 @@
 import contextlib
 import logging
 import os
+import subprocess
 import sys
 from subprocess import CalledProcessError, run
 from time import sleep
@@ -27,9 +28,10 @@ def start_display_manager() -> None:
             capture_output=True,
             check=True,
         )
+        if os.path.exists("/usr/local/bin/backlightd"):
+            run(["/usr/bin/systemctl", "start", "backlightd"], check=True, capture_output=True)
         logging.info(
-            "User was logged in successfully, "
-            "graphical applications can now run again",
+            "User was logged in successfully, graphical applications can now run again",
         )
     except CalledProcessError as cpe:
         logging.error("Command failure: %s", cpe.cmd)
@@ -45,6 +47,10 @@ def stop_display_manager() -> None:
             capture_output=True,
             check=True,
         )
+
+        # backlightd holds GPU devices open, preventing driver unloading.
+        if os.path.exists("/usr/local/bin/backlightd"):
+            run(["/usr/bin/systemctl", "stop", "backlightd"], check=True, capture_output=True)
         logging.info(
             "User was logged out successfully, "
             "graphical applications are not running anymore",
@@ -112,11 +118,16 @@ def try_unload_driver(driver_name: str) -> None:
 
     modprobe: FATAL: Module amdgpu is in use
     """
-    max_attempts = 5
+    max_attempts = 20
     current_attempt = 1
 
     while True:
         try:
+            logging.debug(
+                "unload GPU driver attempt %d/%d",
+                current_attempt,
+                max_attempts,
+            )
             run(
                 ["/usr/bin/modprobe", "-r", driver_name],
                 capture_output=True,
@@ -125,6 +136,21 @@ def try_unload_driver(driver_name: str) -> None:
             break
         except CalledProcessError:
             if current_attempt == max_attempts:
+                logging.error("It seems that some processes are still using the GPU.")
+                logging.debug("Here's a list of processes that might be the culprit:")
+
+                proc = subprocess.run(
+                    ["/usr/bin/lsof", "+c0"],
+                    capture_output=True,
+                    check=False,
+                )
+
+                output = proc.stdout.decode().splitlines()
+
+                for line in output:
+                    if any(s in line for s in ("render", "card", "gpu", "amd", "snd")):
+                        logging.debug("%s", line)
+
                 raise
 
             current_attempt += 1
@@ -213,8 +239,8 @@ def teardown_amd_gpu_passthrough() -> None:
     start_display_manager()
 
 
-def get_vm_pci_devices(vm_name: str) -> list[xml.Element]:
-    vm_config = xml.parse(f"/etc/libvirt/qemu/{vm_name}.xml").getroot()
+def get_vm_pci_devices() -> list[xml.Element]:
+    vm_config = xml.parse(sys.stdin).getroot()
     return vm_config.findall(
         "devices/hostdev[@type='pci']/source/address",
     )
@@ -257,13 +283,8 @@ def main() -> None:
     if operation not in ("prepare", "release"):
         sys.exit(0)
 
-    try:
-        pci_passthrough_devices = get_vm_pci_devices(vm_name)
-    except FileNotFoundError:
-        logging.info(
-            "Looks like %s is a new VM being created, don't do anything", vm_name
-        )
-        sys.exit(0)
+    # Libvirt supplies the domain XML on stdin, including for newly created VMs.
+    pci_passthrough_devices = get_vm_pci_devices()
 
     logging.debug(
         "VM wants to passthrough %d PCI devices",
