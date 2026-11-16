@@ -4,19 +4,11 @@ Type=wlan
 [Network]
 DHCP=ipv4
 
-# Do not use the advertised DNS as the default DNS.
-# Use it only to resolve local domains.
-DNSDefaultRoute=false
-
-# A local DNS server will most likely not use DoT
-DNSOverTLS=opportunistic
-
-# Usually local domains are resolved through mDNS
-# But mDNS is disabled to reduce the attack surface
-# Therefore you can resolve .local domains using
-# regular DNS if you want to.
-Domains=~local
-DNSSECNegativeTrustAnchors=local
+# Wi-Fi networks are untrusted: use the global strict Quad9 DoT policy.
+DNSDefaultRoute=no
+DNSOverTLS=yes
 
 [DHCPv4]
+UseDNS=no
+UseDomains=no
 RouteMetric=600

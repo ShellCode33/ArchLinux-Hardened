@@ -4,19 +4,14 @@ Name=en*
 [Network]
 DHCP=ipv4
 
-# Do not use the advertised DNS as the default DNS.
-# Use it only to resolve local domains.
-DNSDefaultRoute=false
-
-# A local DNS server will most likely not use DoT
-DNSOverTLS=opportunistic
-
-# Usually local domains are resolved through mDNS
-# But mDNS is disabled to reduce the attack surface
-# Therefore you can resolve .local domains using
-# regular DNS if you want to.
-Domains=~local
-DNSSECNegativeTrustAnchors=local
+# Wired networks are trusted: use their DNS for all names.
+Domains=~.
+DNSDefaultRoute=yes
+DNSOverTLS=no
+# Network DNS may filter answers or serve unsigned private zones.
+DNSSEC=no
 
 [DHCPv4]
+UseDNS=yes
+UseDomains=yes
 RouteMetric=100
