@@ -1,11 +1,13 @@
 #!/usr/bin/python3 -u
 
-import os
-import sys
 import json
-import psutil
+import os
 import os.path
-from subprocess import run, CalledProcessError, PIPE, DEVNULL
+import socket
+import sys
+from subprocess import DEVNULL, PIPE, CalledProcessError, run
+
+import psutil
 
 # Do not edit, create a ~/.ssh/config entry
 SERVER_HOST = "backup-server"
@@ -16,17 +18,33 @@ HOME = os.getenv("HOME")
 BACKUP_USER = os.getenv("BACKUP_USER")
 RESTIC_REPO_NAME = os.getenv("RESTIC_REPO_NAME")
 
-def notify(title: str, body: str, urgency: str = "normal"):
 
-    if urgency == "critical":
-        icon = "computer-fail"
-    else:
-        icon = "synology-cloud-station-backup"
-        
-    print("NOTIFY", json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}))
+def notify(title: str, body: str, urgency: str = "normal") -> None:
+    icon = "computer-fail" if urgency == "critical" else "synology-cloud-station-backup"
+
+    print(
+        "NOTIFY",
+        json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}),
+    )
+
+
+def get_last_btrfs_snapshot() -> str:
+    """Return the path to the last btrfs snapshot (performed by snapper)."""
+    snapshots = os.listdir("/home/.snapshots")
+    snapshots_ids = [int(snapshot) for snapshot in snapshots if snapshot.isdecimal()]
+    if not snapshots_ids:
+        raise RuntimeError("No Snapper home snapshot is available")
+    last_snapshot_id = max(snapshots_ids)
+    relative_home = os.path.relpath(HOME, "/home")
+    if relative_home == "." or relative_home == ".." or relative_home.startswith("../"):
+        raise ValueError("HOME must be a user directory under /home")
+    snapshot_home = f"/home/.snapshots/{last_snapshot_id}/snapshot/{relative_home}"
+    if not os.path.isdir(snapshot_home):
+        raise RuntimeError("The latest home snapshot does not contain HOME")
+    return snapshot_home
+
 
 def main() -> None:
-
     notify("SYSTEM MAINTENANCE", "Incremental backup of the home folder in progress...")
 
     # We are not in a hurry, let's give a low 'nice' priority to the backup process
@@ -37,39 +55,123 @@ def main() -> None:
     this_script.ionice(psutil.IOPRIO_CLASS_IDLE)
 
     if not HOME:
-        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed: HOME variable is not set, wtf ?", urgency="critical")
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Incremental backup failure: HOME variable is not set, wtf ?",
+            urgency="critical",
+        )
         sys.exit(1)
 
     if not BACKUP_USER:
-        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed: BACKUP_USER variable is not set", urgency="critical")
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Incremental backup failure: BACKUP_USER variable is not set",
+            urgency="critical",
+        )
         sys.exit(1)
 
     if not RESTIC_REPO_NAME:
-        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed: RESTIC_REPO_NAME variable is not set", urgency="critical")
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Incremental backup failure: RESTIC_REPO_NAME variable is not set",
+            urgency="critical",
+        )
         sys.exit(1)
 
     try:
-        run(["/usr/bin/restic", "-r",
-             f"sftp:{BACKUP_USER}@{SERVER_HOST}:{RESTIC_REPO_NAME}",
-             "backup", "--no-scan", "--one-file-system",
-             "--exclude", f"{HOME}/.cache/*",
-             HOME],
+        snapshot_path = get_last_btrfs_snapshot()
+        backup_tag = f"home:{HOME}"
+        # Remove old stale locks first, they can happen if restic was stopped abruptly
+        # (machine shutdown, power failure, etc.)
+        run(
+            [
+                "/usr/bin/restic",
+                "-r",
+                f"sftp:{BACKUP_USER}@{SERVER_HOST}:{RESTIC_REPO_NAME}",
+                "unlock",
+            ],
             stderr=PIPE,
             stdout=DEVNULL,
-            check=True)
+            check=True,
+        )
 
-        notify("SYSTEM MAINTENANCE", "Incremental backup of the home folder successful !")
+        run(
+            [
+                "/usr/bin/restic",
+                "-r",
+                f"sftp:{BACKUP_USER}@{SERVER_HOST}:{RESTIC_REPO_NAME}",
+                "backup",
+                "--no-scan",
+                "--one-file-system",
+                "--tag",
+                backup_tag,
+                "--group-by",
+                "host,tags",
+                "--exclude",
+                "*/.cache",
+                "--exclude",
+                "*/[Dd]ownloads",
+                ".",  # path to backup
+            ],
+            cwd=snapshot_path,
+            stderr=PIPE,
+            stdout=DEVNULL,
+            check=True,
+        )
+
+        # Group by the stable home tag because each Btrfs snapshot has a new path.
+        # Keep backups across yearly, monthly, weekly and daily time periods.
+        run(
+            [
+                "/usr/bin/restic",
+                "-r",
+                f"sftp:{BACKUP_USER}@{SERVER_HOST}:{RESTIC_REPO_NAME}",
+                "forget",
+                "--host",
+                socket.gethostname(),
+                "--tag",
+                backup_tag,
+                "--group-by",
+                "host,tags",
+                "--keep-yearly",
+                "4",
+                "--keep-monthly",
+                "13",
+                "--keep-weekly",
+                "5",
+                "--keep-daily",
+                "8",
+                "--prune",
+            ],
+            stderr=PIPE,
+            stdout=DEVNULL,
+            check=True,
+        )
+
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Incremental backup of the home folder successful !",
+        )
         return_code = 0
 
     except CalledProcessError as cpe:
         error_str = cpe.stderr.decode()
-        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed with:\n\n" + error_str, urgency="critical")
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Incremental backup of the home folder failed with:\n\n" + error_str,
+            urgency="critical",
+        )
         return_code = 1
-    except Exception as exc:
-        notify("SYSTEM MAINTENANCE", f"Incremental backup of the home folder failed with:\n\n" + str(exc), urgency="critical")
+    except Exception as exc:  # noqa: BLE001
+        notify(
+            "SYSTEM MAINTENANCE",
+            "Incremental backup of the home folder failed with:\n\n" + str(exc),
+            urgency="critical",
+        )
         return_code = 1
 
     sys.exit(return_code)
+
 
 if __name__ == "__main__":
     main()
