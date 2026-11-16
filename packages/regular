@@ -126,6 +126,7 @@ graphviz
 android-tools
 ipython
 python-pip
+uv # Runs the pinned repository lint and format tools
 man-db
 man-pages
 npm # for nvim plugins
@@ -157,6 +158,7 @@ zsh
 dash
 dialog
 ripgrep
+fd
 jq
 bat
 
