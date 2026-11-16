@@ -129,7 +129,7 @@ def parse_auditd_entry(event: str) -> dict[str, str]:
         error = "Unable to parse log entry"
         raise ValueError(error)
 
-    event = f"{event[:index]} event_id={event[index+1:]}"
+    event = f"{event[:index]} event_id={event[index + 1 :]}"
 
     index = event.find(":")
 
@@ -137,7 +137,7 @@ def parse_auditd_entry(event: str) -> dict[str, str]:
         error = "Unable to parse log entry"
         raise ValueError(error)
 
-    event = f"{event[:index-1]}{event[index+1:]}"
+    event = f"{event[: index - 1]}{event[index + 1 :]}"
 
     # Then we split spaces and equal signs to create a dict
     tokens = event.split()
@@ -221,14 +221,12 @@ def notify_if_relevant(log_entry: dict[str, str]) -> None:
 
     elif log_entry["type"] == "USER_AUTH" and log_entry["res"] == "failed":
         title = "AUTHENTICATION FAILURE"
-        body = (
-            f"From: {log_entry['UID']}\n"
-            f"Using: {log_entry['exe']}"
-        )
+        body = f"From: {log_entry['UID']}\nUsing: {log_entry['exe']}"
 
     elif (
         log_entry["type"] == "SYSCALL"
         and log_entry["key"] == "etc_shadow"
+        and log_entry["exe"] not in ("/usr/bin/systemd-tmpfiles",)
     ):
         title = "SECRET FILE ACCESS"
         body = (
@@ -266,7 +264,7 @@ def notify_if_relevant(log_entry: dict[str, str]) -> None:
     elif (
         log_entry["type"] == "SYSCALL"
         and log_entry["key"] == "auditd_tampering"
-        and log_entry["exe"] not in ("/usr/bin/pacman")
+        and log_entry["exe"] not in ("/usr/bin/pacman", "/usr/bin/systemd-tmpfiles")
     ):
         title = "AUDITD TAMPERING"
         body = (
