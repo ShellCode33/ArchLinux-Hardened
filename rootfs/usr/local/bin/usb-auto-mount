@@ -9,7 +9,7 @@ def notify(body: str, urgency: str = "normal") -> None:
     icon = "computer-fail" if urgency == "critical" else "drive-removable-media-usb"
     run(
         [
-            "/usr/local/bin/journal-notify",
+            "journal-notify",
             "--urgency",
             urgency,
             "--icon",

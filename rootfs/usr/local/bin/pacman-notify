@@ -6,7 +6,7 @@ from subprocess import run
 
 
 def notify(title: str, body: str, icon: str | None = None) -> None:
-    command = ["/usr/local/bin/journal-notify", "--urgency", "normal"]
+    command = ["journal-notify", "--urgency", "normal"]
     if icon:
         command += ["--icon", icon]
     run([*command, "--", title, body], check=False)

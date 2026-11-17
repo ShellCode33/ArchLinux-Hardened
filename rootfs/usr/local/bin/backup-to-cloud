@@ -32,7 +32,7 @@ def notify(title: str, body: str, urgency: str = "normal") -> None:
     icon = "computer-fail" if urgency == "critical" else "synology-cloud-station-backup"
     run(
         [
-            "/usr/local/bin/journal-notify",
+            "journal-notify",
             "--urgency",
             urgency,
             "--icon",

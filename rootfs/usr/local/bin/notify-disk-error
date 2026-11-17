@@ -4,4 +4,4 @@
 # admin that a disk failure has been detected.
 # See /etc/audit/auditd.conf
 # Submit directly to the journal: auditd discards callback stdout/stderr.
-/usr/local/bin/journal-notify --urgency critical "DISK FAILURE" "Detected by auditd, please investigate"
+journal-notify --urgency critical "DISK FAILURE" "Detected by auditd, please investigate"

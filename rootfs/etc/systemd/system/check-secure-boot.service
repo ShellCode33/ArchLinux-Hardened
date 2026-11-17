@@ -3,7 +3,7 @@ Description=Check the secure boot status at boot
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c '[ "$(hexdump /sys/firmware/efi/efivars/SecureBoot-* | awk \'{print $4}\')" = "0001" ] || /usr/local/bin/journal-notify --urgency critical "SECURE BOOT DISABLED" "Please take action"'
+ExecStart=/bin/bash -c '[ "$(hexdump /sys/firmware/efi/efivars/SecureBoot-* | awk \'{print $4}\')" = "0001" ] || journal-notify --urgency critical "SECURE BOOT DISABLED" "Please take action"'
 
 [Install]
 WantedBy=multi-user.target

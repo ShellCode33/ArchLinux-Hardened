@@ -190,7 +190,7 @@ def check_local_cves() -> list[tuple[str, str]]:
 
 def report(title: str, body: str, urgency: str = "critical") -> None:
     run(
-        ["/usr/local/bin/journal-notify", "--urgency", urgency, "--", title, body],
+        ["journal-notify", "--urgency", urgency, "--", title, body],
         check=False,
     )
 

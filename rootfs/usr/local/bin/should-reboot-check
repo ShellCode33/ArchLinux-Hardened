@@ -9,7 +9,7 @@ from subprocess import check_output, run
 def notify(title: str, body: str) -> None:
     run(
         [
-            "/usr/local/bin/journal-notify",
+            "journal-notify",
             "--urgency",
             "critical",
             "--icon",

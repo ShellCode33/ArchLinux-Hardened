@@ -6,7 +6,7 @@
 # Submit notifications directly: auditd discards callback stdout/stderr.
 
 notify() {
-    /usr/local/bin/journal-notify --urgency "$1" "CRITICALLY LOW ON DISK SPACE" "$2" || :
+    journal-notify --urgency "$1" "CRITICALLY LOW ON DISK SPACE" "$2" || :
 }
 
 stop() {

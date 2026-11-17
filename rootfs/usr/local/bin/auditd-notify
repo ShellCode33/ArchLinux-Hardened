@@ -170,7 +170,7 @@ def parse_auditd_entry(event: str) -> dict[str, str]:
 
 def notify(title: str, body: str) -> None:
     run(
-        ["/usr/local/bin/journal-notify", "--urgency", "critical", "--", title, body],
+        ["journal-notify", "--urgency", "critical", "--", title, body],
         check=False,
     )
 

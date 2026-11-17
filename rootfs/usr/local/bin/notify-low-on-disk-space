@@ -17,7 +17,7 @@ fi
 sync
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
 
-/usr/local/bin/journal-notify --urgency critical "LOW ON DISK SPACE" "Space left on device: $space_left"
+journal-notify --urgency critical "LOW ON DISK SPACE" "Space left on device: $space_left"
 
 # Release before resuming so a retriggered callback cannot leave auditd suspended.
 rmdir -- "$LOCK_DIR"
