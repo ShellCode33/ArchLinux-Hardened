@@ -1,0 +1,77 @@
+name: Installer ISO
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild and replace an already published ISO
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-iso
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      needed: ${{ steps.release.outputs.needed }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          if [ "$FORCE" = true ]; then
+            ./iso/build check --force
+          else
+            ./iso/build check
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.needed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      ISO_VERSION: ${{ needs.check.outputs.version }}
+      RELEASE_TAG: ${{ needs.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.8"
+      - run: ./dev lint
+      - name: Install remastering and VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xorriso mtools gnupg qemu-system-x86 ovmf
+      - name: Build from the official ISO
+        run: ./iso/build build --version "$ISO_VERSION" --work-dir "$RUNNER_TEMP/iso-work" --output "$RUNNER_TEMP/iso-output"
+      - name: Boot-test BIOS and UEFI without installing
+        run: |
+          image="$RUNNER_TEMP/iso-output/archlinux-hardened-$ISO_VERSION-x86_64.iso"
+          ./iso/build test "$image"
+          ./iso/build test "$image" --firmware /usr/share/OVMF/OVMF_CODE_4M.fd
+      - name: Publish ISO and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --draft --target "$GITHUB_SHA" \
+              --title "ArchLinux Hardened installer $ISO_VERSION" \
+              --notes "Official Arch Linux $ISO_VERSION ISO with a launcher that clones the latest setup at installation time. Internet access is required."
+          fi
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/iso-output"/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

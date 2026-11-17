@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+
+if ! mountpoint -q /run/archiso/bootmnt; then
+  echo '[installer] This launcher must run inside the Arch installation medium.' >&2
+  exit 1
+fi
+
+# A diskless, offline CI VM uses this channel to test the real boot entry.
+# Never clone or invoke the destructive installer during that test.
+smoke_port=/dev/virtio-ports/org.archlinux.hardened.smoke
+if [[ -w "$smoke_port" ]]; then
+  printf '%s\n' ARCHLINUX_HARDENED_LAUNCHER_READY >"$smoke_port"
+  exit 0
+fi
+
+trap 'echo "[installer] Startup failed. Check networking (iwctl for Wi-Fi), then retry: /run/archiso/bootmnt/hardened/start-install" >&2' ERR
+
+# A degraded live session may still be usable. Wait for initialization,
+# including pacman-init, rather than racing the package manager at login.
+state=$(systemctl is-system-running --wait) || true
+case "$state" in
+  running | degraded) ;;
+  *)
+    echo "[installer] Live environment is not ready: $state" >&2
+    exit 1
+    ;;
+esac
+systemctl start network-online.target
+
+if ! command -v git >/dev/null 2>&1; then
+  # This updates only the disposable live environment, never the target disk.
+  pacman -Syu --needed --noconfirm git
+fi
+
+checkout=$(mktemp -d /root/hardened-install.XXXXXX)
+timeout --foreground --kill-after=5s 120s git clone --depth 1 \
+  https://github.com/ShellCode33/ArchLinux-Hardened.git "$checkout/repo"
+exec bash "$checkout/repo/install.sh"

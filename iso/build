@@ -1,0 +1,399 @@
+#!/usr/bin/env python3
+# pyright: strict
+"""Check Arch releases, remaster the official ISO, and smoke-test its launcher."""
+
+import argparse
+import hashlib
+import json
+import logging
+import os
+import re
+import shlex
+import shutil
+import stat
+import subprocess
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import cast
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+METADATA_URL = "https://archlinux.org/releng/releases/json/"
+REPOSITORY = "ShellCode33/ArchLinux-Hardened"
+BOOT_SCRIPT = "script=/run/archiso/bootmnt/hardened/start-install"
+SMOKE_MARKER = "ARCHLINUX_HARDENED_LAUNCHER_READY"
+logger = logging.getLogger("iso")
+
+
+@dataclass(frozen=True)
+class Release:
+    version: str
+    path: str
+    sha256: str
+    fingerprint: str
+
+    @property
+    def filename(self) -> str:
+        return f"archlinux-hardened-{self.version}-x86_64.iso"
+
+
+def release_metadata(version: str | None = None) -> Release:
+    with urlopen(METADATA_URL, timeout=30) as response:
+        data = cast(dict[str, object], json.load(response))
+    version = version or cast(str, data["latest_version"])
+    if not re.fullmatch(r"\d{4}\.\d{2}\.\d{2}", version):
+        raise ValueError("Invalid Arch release version")
+    releases = cast(list[dict[str, object]], data["releases"])
+    item = next(
+        (item for item in releases if item["version"] == version and item["available"]),
+        None,
+    )
+    if item is None:
+        raise ValueError(f"Arch ISO {version} is not available")
+    release = Release(
+        version,
+        cast(str, item["iso_url"]),
+        cast(str, item["sha256_sum"]),
+        cast(str, item["pgp_fingerprint"]),
+    )
+    if release.path != f"/iso/{version}/archlinux-{version}-x86_64.iso":
+        raise ValueError("Unexpected official ISO path")
+    if not re.fullmatch(r"[0-9a-f]{64}", release.sha256) or not re.fullmatch(
+        r"[0-9A-F]{40}", release.fingerprint
+    ):
+        raise ValueError("Invalid official ISO verification metadata")
+    return release
+
+
+def check_release(repository: str, force: bool) -> None:
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
+        raise ValueError("Invalid GitHub repository")
+    release = release_metadata()
+    tag = f"archlinux-{release.version}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "ArchLinux-Hardened-ISO",
+    }
+    if token := os.environ.get("GH_TOKEN"):
+        headers["Authorization"] = f"Bearer {token}"
+    request = Request(
+        f"https://api.github.com/repos/{repository}/releases/tags/{tag}",
+        headers=headers,
+    )
+    complete = False
+    try:
+        with urlopen(request, timeout=30) as response:
+            published = cast(dict[str, object], json.load(response))
+        assets = cast(list[dict[str, object]], published["assets"])
+        uploaded = {
+            asset["name"]
+            for asset in assets
+            if asset["state"] == "uploaded" and cast(int, asset["size"]) > 0
+        }
+        complete = (
+            not published["draft"]
+            and {release.filename, release.filename + ".sha256"} <= uploaded
+        )
+    except HTTPError as error:
+        if error.code != 404:
+            raise
+    needed = force or not complete
+    values = f"version={release.version}\ntag={tag}\nneeded={str(needed).lower()}\n"
+    if output := os.environ.get("GITHUB_OUTPUT"):
+        with open(output, "a") as stream:
+            stream.write(values)
+    print(values, end="")
+
+
+def run(*arguments: str) -> str:
+    result = subprocess.run(arguments, check=True, text=True, stdout=subprocess.PIPE)
+    return result.stdout
+
+
+def sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def download(url: str, path: Path) -> None:
+    logger.info("Downloading %s", url)
+    temporary = path.with_name(path.name + ".part")
+    try:
+        with urlopen(url, timeout=120) as response, temporary.open("wb") as stream:
+            shutil.copyfileobj(response, stream)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def verify_source(release: Release, source: Path, work: Path) -> None:
+    if sha256(source) != release.sha256:
+        raise ValueError(
+            "Official ISO checksum does not match Arch metadata; remove the cached ISO before retrying"
+        )
+    download(
+        "https://geo.mirror.pkgbuild.com" + release.path + ".sig",
+        work / "official.iso.sig",
+    )
+    key = work / "signer.asc"
+    download(
+        f"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x{release.fingerprint}",
+        key,
+    )
+    keyring = work / "gnupg"
+    keyring.mkdir(exist_ok=True, mode=0o700)
+    run("gpg", "--homedir", str(keyring), "--batch", "--import", str(key))
+    status = run(
+        "gpg",
+        "--homedir",
+        str(keyring),
+        "--batch",
+        "--status-fd",
+        "1",
+        "--verify",
+        str(work / "official.iso.sig"),
+        str(source),
+    )
+    signatures = [
+        line.split()
+        for line in status.splitlines()
+        if line.startswith("[GNUPG:] VALIDSIG ")
+    ]
+    if not any(release.fingerprint in (line[2], line[-1]) for line in signatures):
+        raise ValueError("ISO signature does not match the signer in Arch metadata")
+    logger.info("Verified official ISO checksum and signing fingerprint")
+
+
+def patch_boot_config(path: Path) -> int:
+    count = 0
+    lines: list[str] = []
+    for line in path.read_text().splitlines(keepends=True):
+        if (
+            re.match(r"\s*(?:options|APPEND|linux|linuxefi)\s+", line)
+            and "archisobasedir=" in line
+        ):
+            if "script=" in line:
+                raise ValueError(f"Unexpected pre-existing startup script in {path}")
+            line = line.rstrip() + " " + BOOT_SCRIPT + "\n"
+            count += 1
+        lines.append(line)
+    if count:
+        mode = stat.S_IMODE(path.stat().st_mode)
+        path.chmod(mode | stat.S_IWUSR)
+        try:
+            path.write_text("".join(lines))
+        finally:
+            path.chmod(mode)
+    return count
+
+
+def build_iso(release: Release, work: Path, output: Path) -> None:
+    work.mkdir(parents=True, exist_ok=True)
+    output.mkdir(parents=True, exist_ok=True)
+    source = work / "official.iso"
+    if not source.exists():
+        download("https://geo.mirror.pkgbuild.com" + release.path, source)
+    verify_source(release, source, work)
+    # Isolate each attempt from previous extracted files and partial builds.
+    with tempfile.TemporaryDirectory(prefix="remaster-", dir=work) as directory:
+        scratch = Path(directory)
+        tree, boots = scratch / "tree", scratch / "boot-images"
+        options = shlex.split(
+            run("xorriso", "-indev", str(source), "-report_el_torito", "as_mkisofs")
+        )
+        run(
+            "xorriso",
+            "-osirrox",
+            "on",
+            "-indev",
+            str(source),
+            "-extract",
+            "/",
+            str(tree),
+            "-extract_boot_images",
+            str(boots),
+        )
+        images = list(boots.glob("eltorito_img*_uefi.img"))
+        if len(images) != 1:
+            raise ValueError("Unsupported ISO boot layout: expected one EFI image")
+        efi = images[0]
+        loader = scratch / "efi-loader"
+        loader.mkdir()
+        run("mcopy", "-s", "-i", str(efi), "::/loader", str(loader))
+        efi_count = 0
+        for entry in (loader / "loader/entries").glob("*.conf"):
+            if count := patch_boot_config(entry):
+                efi_count += count
+                run(
+                    "mcopy",
+                    "-o",
+                    "-i",
+                    str(efi),
+                    str(entry),
+                    "::/loader/entries/" + entry.name,
+                )
+        bios_count = sum(
+            patch_boot_config(path) for path in (tree / "boot/syslinux").glob("*.cfg")
+        )
+        for folder, pattern in [
+            (tree / "loader/entries", "*.conf"),
+            (tree / "boot/grub", "*.cfg"),
+        ]:
+            for path in folder.glob(pattern):
+                patch_boot_config(path)
+        if not efi_count or not bios_count:
+            raise ValueError(
+                "Unsupported ISO: no installer entries found for UEFI or BIOS"
+            )
+        # Preserve the upstream volume UUID and boot recipe, replacing the EFI
+        # partition in both the USB partition table and El Torito CD boot entry.
+        partitions = [
+            index
+            for index, argument in enumerate(options)
+            if argument == "-append_partition"
+        ]
+        if len(partitions) != 1 or options[partitions[0] + 2] != "0xef":
+            raise ValueError("Unsupported ISO EFI partition layout")
+        index = partitions[0]
+        number = options[index + 1]
+        options[index + 3] = str(efi)
+        options[options.index("-e") + 1] = (
+            f"--interval:appended_partition_{number}:all::"
+        )
+        target = tree / "hardened/start-install"
+        root_mode = stat.S_IMODE(tree.stat().st_mode)
+        tree.chmod(root_mode | stat.S_IWUSR)
+        try:
+            target.parent.mkdir()
+            shutil.copy2(Path(__file__).with_name("start-install"), target)
+        finally:
+            tree.chmod(root_mode)
+        image = output / release.filename
+        partial = scratch / release.filename
+        run("xorriso", "-as", "mkisofs", *options, "-o", str(partial), str(tree))
+        if partial.stat().st_size >= 2 * 1024**3:
+            raise ValueError("ISO exceeds GitHub's per-asset release limit")
+        shutil.move(partial, image)
+        (output / (release.filename + ".sha256")).write_text(
+            f"{sha256(image)}  {release.filename}\n"
+        )
+        logger.info("Built %s", image)
+
+
+def smoke_test(image: Path, firmware: Path | None, timeout: int) -> None:
+    with tempfile.TemporaryDirectory(prefix="iso-smoke-") as directory:
+        scratch = Path(directory)
+        marker = scratch / "launcher.log"
+        command = [
+            "qemu-system-x86_64",
+            "-machine",
+            "q35,accel=tcg",
+            "-m",
+            "2048",
+            "-smp",
+            "2",
+            "-display",
+            "none",
+            "-nic",
+            "none",
+            "-no-reboot",
+            "-cdrom",
+            str(image),
+            "-boot",
+            "d",
+            "-device",
+            "virtio-serial",
+            "-chardev",
+            f"file,id=smoke,path={marker}",
+            "-device",
+            "virtserialport,chardev=smoke,name=org.archlinux.hardened.smoke",
+        ]
+        if firmware:
+            variables = scratch / "OVMF_VARS.fd"
+            shutil.copy2(
+                firmware.with_name(firmware.name.replace("CODE", "VARS")), variables
+            )
+            command += [
+                "-drive",
+                f"if=pflash,format=raw,readonly=on,file={firmware}",
+                "-drive",
+                f"if=pflash,format=raw,file={variables}",
+            ]
+        with (
+            (scratch / "qemu.log").open("w") as log,
+            subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT) as process,
+        ):
+            try:
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline and process.poll() is None:
+                    if marker.exists() and SMOKE_MARKER in marker.read_text():
+                        logger.info(
+                            "%s boot reached the launcher; no installer was executed",
+                            "UEFI" if firmware else "BIOS",
+                        )
+                        return
+                    time.sleep(1)
+                raise RuntimeError(
+                    f"ISO did not reach its launcher within {timeout}s. "
+                    + (scratch / "qemu.log").read_text()[-4000:]
+                )
+            finally:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+
+
+def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO, format="[%(name)s] [%(levelname)s] %(message)s"
+    )
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    check = commands.add_parser(
+        "check", help="Check whether the newest official ISO needs publishing"
+    )
+    check.add_argument(
+        "--repository", default=os.environ.get("GITHUB_REPOSITORY", REPOSITORY)
+    )
+    check.add_argument("--force", action="store_true")
+    build = commands.add_parser("build", help="Remaster and verify an official ISO")
+    build.add_argument("--version")
+    build.add_argument("--work-dir", type=Path, required=True)
+    build.add_argument("--output", type=Path, required=True)
+    test = commands.add_parser(
+        "test", help="Boot without disks or networking; never run the installer"
+    )
+    test.add_argument("image", type=Path)
+    test.add_argument(
+        "--firmware", type=Path, help="OVMF firmware image; omit for BIOS"
+    )
+    test.add_argument("--timeout", type=int, default=300)
+    args = parser.parse_args()
+    try:
+        if args.command == "check":
+            check_release(cast(str, args.repository), cast(bool, args.force))
+        elif args.command == "build":
+            build_iso(
+                release_metadata(cast(str | None, args.version)),
+                cast(Path, args.work_dir).resolve(),
+                cast(Path, args.output).resolve(),
+            )
+        else:
+            smoke_test(
+                cast(Path, args.image).resolve(),
+                cast(Path | None, args.firmware),
+                cast(int, args.timeout),
+            )
+        return 0
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+        logger.error("%s", error)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
