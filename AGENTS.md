@@ -12,8 +12,8 @@ Keep changes focused on the request. Do not create extra files or documentation 
 
 | Location                           | Responsibility                                                                                                                            |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `install.sh`                       | Destructive fresh installation from an Arch environment: storage, packages, boot, users, rootfs deployment, and service enablement.       |
-| `packages/regular`, `packages/aur` | Selected install-time packages, one package name per line with optional comments. Hardware-dependent additions also live in `install.sh`. |
+| `install`                          | Destructive fresh installation from an Arch environment: storage, packages, boot, users, rootfs deployment, and service enablement.       |
+| `packages/regular`, `packages/aur` | Selected install-time packages, one package name per line with optional comments. Hardware-dependent additions also live in `install`.    |
 | `rootfs/`                          | Overlay for the target filesystem: `rootfs/etc/...` maps to `/etc/...`, and likewise for other paths.                                     |
 | `rootfs/usr/local/bin/`            | Maintenance scripts, notifications, and command wrappers; many scripts have no extension.                                                 |
 | `rootfs/etc/systemd/`              | System/user services, timers, overrides, and network configuration.                                                                       |
@@ -36,8 +36,8 @@ Use non-login shells for automated commands. The user's `.profile` starts the in
 
 ## Protect the running installation
 
-- Never execute or source `install.sh` as a test. It unmounts filesystems, overwrites disks, partitions, encrypts, and installs the OS. Use static checks; exercise installation behavior only in an explicitly authorized disposable VM/disk.
-- Do not run `~/.dotfiles/install.sh` as a harmless refresh. Its link function removes existing destinations recursively before replacing them with symlinks, and the script performs other setup actions. Make targeted changes instead.
+- Never execute or source `install` as a test. It unmounts filesystems, overwrites disks, partitions, encrypts, and installs the OS. Use static checks; exercise installation behavior only in an explicitly authorized disposable VM/disk.
+- Do not run `~/.dotfiles/install` as a harmless refresh. Its link function removes existing destinations recursively before replacing them with symlinks, and the script performs other setup actions. Make targeted changes instead.
 - A repository-edit request does not automatically authorize applying all rootfs changes, upgrading packages, restarting unrelated services, changing boot configuration, or rebooting. For an authorized live fix, inspect the specific change first and apply only the necessary scope. Do not repeatedly request permission already granted; respect tool/sandbox approval requirements.
 - Never relax firewall policy, sandboxing, file permissions, or service privileges merely to make a command or check pass. Diagnose the actual access/network requirement.
 - Keep credentials, tokens, private keys, account databases, generated diffs containing private data, and personal event details out of Git and command output. Inspect only the data needed for the task; report counts/status rather than secrets.
@@ -51,7 +51,7 @@ Read `sync` before changing it. Its existing behavior is intentional:
 
 - `./sync` and `./sync --dry-run` preview only. Apply requires root and `--apply`; `--yes` bypasses its confirmation. Do not use apply mode for validation.
 - Selection is restricted to Git-tracked/indexed paths under `rootfs/`; content comes from the working tree, including uncommitted edits and staged additions. Untracked rootfs files are ignored with warnings. It does not sync the dotfiles repository.
-- Package differences, removed-but-still-live configurations, and package permission differences are warnings, never automatic repairs. Package audits distinguish explicit installations from dependencies and account for installer-conditional packages.
+- Btrfs layout differences, package differences, removed-but-still-live configurations, and package permission differences are warnings, never automatic repairs. Package audits distinguish explicit installations from dependencies and account for installer-conditional packages.
 - For a formerly tracked, package-owned file, the expected fallback is the installed package's default content, checked using its local mtree manifest. Its continued existence alone is not an error. Unowned leftovers are reported separately.
 - Unprivileged preview continues past unreadable files, reports the unchecked count, and exits nonzero for an incomplete preview. Do not weaken permissions to avoid this. Apply must finish planning successfully before writing files.
 - Diffs are written to a private temporary `.diff` file and its path is logged. Leave viewing to the user; do not restore automatic pager launching.

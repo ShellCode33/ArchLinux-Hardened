@@ -36,4 +36,4 @@ fi
 checkout=$(mktemp -d /root/hardened-install.XXXXXX)
 timeout --foreground --kill-after=5s 120s git clone --depth 1 \
   https://github.com/ShellCode33/ArchLinux-Hardened.git "$checkout/repo"
-exec bash "$checkout/repo/install.sh"
+exec "$checkout/repo/install"

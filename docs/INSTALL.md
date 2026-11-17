@@ -19,7 +19,7 @@ Let's go!
 $ pacman -Sy git
 $ git clone https://github.com/ShellCode33/ArchLinux-Hardened
 $ cd ArchLinux-Hardened
-$ ./install.sh
+$ ./install
 ```
 
 If you get gpg/keyring related errors, do the following :

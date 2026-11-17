@@ -10,6 +10,7 @@ import logging
 import os
 import pwd
 import re
+import shlex
 import stat
 import subprocess
 import sys
@@ -225,7 +226,7 @@ def audit_packages(repo: Path) -> dict[str, str]:
     conditional = set(
         re.findall(
             r"^\s*echo\s+([a-z0-9][a-z0-9@._+-]*)\s*(?:>>\s*(?:regular|aur)_packages_to_install)?\s*$",
-            (repo / "install.sh").read_text(),
+            (repo / "install").read_text(),
             re.MULTILINE,
         )
     )
@@ -251,6 +252,120 @@ def decode_mtree(value: str) -> str:
             os.fsencode(value),
         )
     )
+
+
+def installer_subvolumes(repo: Path) -> tuple[set[str], dict[str, str]]:
+    """Read literal create/mount commands, without executing the installer."""
+    created: set[str] = set()
+    mounts: dict[str, str] = {}
+    text = (repo / "install").read_text().replace("\\\n", "")
+    for line in text.splitlines():
+        if re.match(r"\s*btrfs subvolume create\s", line):
+            words = shlex.split(line, comments=True)
+            if len(words) != 4 or not words[3].startswith("/mnt/"):
+                raise ValueError("Unsupported installer subvolume creation command")
+            created.add(words[3].removeprefix("/mnt/"))
+        elif re.match(r"\s*mount\s", line) and "subvol=" in line:
+            words = shlex.split(line, comments=True)
+            options = words[words.index("-o") + 1].split(",")
+            subvolume = next(
+                (
+                    opt.removeprefix("subvol=")
+                    for opt in options
+                    if opt.startswith("subvol=")
+                ),
+                "",
+            )
+            if not subvolume or "$" in subvolume:
+                raise ValueError("Unsupported installer subvolume mount options")
+            target = words[-1]
+            if target != "/mnt" and not target.startswith("/mnt/"):
+                raise ValueError("Unsupported installer subvolume mount target")
+            mounts[target.removeprefix("/mnt") or "/"] = subvolume.lstrip("/")
+    if not created or set(mounts.values()) != created:
+        raise ValueError("Installer subvolume creation and mount declarations differ")
+    return created, mounts
+
+
+@dataclass(frozen=True)
+class Mount:
+    device: str
+    root: str
+    filesystem: str
+
+
+def live_mounts() -> dict[str, Mount]:
+    mounts: dict[str, Mount] = {}
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        fields, separator, details = line.partition(" - ")
+        before, after = fields.split(), details.split()
+        if not separator or len(before) < 6 or len(after) < 3:
+            raise ValueError("Malformed mountinfo record")
+        mounts[decode_mtree(before[4])] = Mount(
+            before[2], decode_mtree(before[3]), after[0]
+        )
+    return mounts
+
+
+def audit_subvolumes(repo: Path, user: str | None) -> None:
+    expected, targets = installer_subvolumes(repo)
+    mounted = live_mounts()
+    root = mounted.get("/")
+    if root is None or root.filesystem != "btrfs":
+        logger.warning("Btrfs layout differs: / is not mounted as Btrfs")
+        return
+    for target, subvolume in targets.items():
+        if "$user" in target or "${user}" in target:
+            if not user:
+                logger.warning("Cannot check Btrfs mount %s: use --user USER", target)
+                continue
+            target = target.replace("${user}", user).replace("$user", user)
+        if "$" in target:
+            raise ValueError(
+                f"Unsupported variable in installer mount target: {target}"
+            )
+        actual = mounted.get(target)
+        if actual is None:
+            logger.warning("Btrfs subvolume %s is not mounted at %s", subvolume, target)
+        elif actual != Mount(root.device, "/" + subvolume, "btrfs"):
+            logger.warning(
+                "Btrfs mount differs at %s: expected /%s on the root filesystem; live %s %s (device %s)",
+                target,
+                subvolume,
+                actual.filesystem,
+                actual.root,
+                actual.device,
+            )
+    # Listing all subvolumes requires privileges; mount checks above do not.
+    query = subprocess.run(
+        ["btrfs", "subvolume", "list", "-a", "/"],
+        capture_output=True,
+        text=True,
+        env=os.environ | {"LC_ALL": "C"},
+    )
+    if query.returncode:
+        logger.warning(
+            "Cannot inventory Btrfs subvolumes: %s; mount checks completed, inventory unchecked (may require sudo)",
+            query.stderr.strip() or f"btrfs exited with status {query.returncode}",
+        )
+        return
+    actual_paths: set[str] = set()
+    for line in query.stdout.splitlines():
+        match = re.fullmatch(r"ID \d+ gen \d+ top level (\d+) path (.+)", line)
+        if match is None:
+            raise ValueError("Unrecognized btrfs subvolume list output")
+        # Nested snapshots and container subvolumes are not installer layout entries.
+        if match[1] == "5":
+            actual_paths.add(match[2].removeprefix("<FS_TREE>/"))
+    if missing := expected - actual_paths:
+        logger.warning(
+            "Installer Btrfs subvolumes are missing: %s", ", ".join(sorted(missing))
+        )
+    if extra := actual_paths - expected:
+        logger.warning(
+            "Top-level Btrfs subvolumes are not in the installer: %s",
+            ", ".join(sorted(extra)),
+        )
 
 
 def package_file_attributes(manifest: Path, relative: Path) -> dict[str, str]:
@@ -440,6 +555,10 @@ def main() -> int:
             parser.error(f"unknown local user: {user}")
 
     repo = Path(__file__).resolve().parent
+    try:
+        audit_subvolumes(repo, user)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        logger.warning("Cannot audit Btrfs subvolumes: %s", error)
     for path in git_paths(repo, "ls-files", "-z", "--others", "--exclude-standard"):
         logger.warning("Ignoring untracked file: %s", path)
     tracked = set(git_paths(repo, "ls-files", "-z"))

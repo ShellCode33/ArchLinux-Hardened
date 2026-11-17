@@ -443,4 +443,4 @@ arch-chroot /mnt systemctl --global enable llama-server
 # Run userspace configuration
 HOME="/home/$user" arch-chroot -u "$user" /mnt /bin/bash -c 'cd && \
                                                              git clone https://github.com/ShellCode33/.dotfiles && \
-                                                             .dotfiles/install.sh'
+                                                             .dotfiles/install'
