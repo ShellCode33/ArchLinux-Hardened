@@ -7,6 +7,20 @@
 #
 
 set -euo pipefail
+
+# Debug-only escape hatch for disposable test disks. This skips only the random
+# fill, never disk selection, erase confirmation, partitioning or formatting.
+skip_random_fill=false
+for argument in "$@"; do
+  case "$argument" in
+    --skip-random-fill) skip_random_fill=true ;;
+    *)
+      echo "Unknown argument: $argument" >&2
+      exit 2
+      ;;
+  esac
+done
+
 cd "$(dirname "$0")"
 trap on_error ERR
 
@@ -54,6 +68,58 @@ get_choice() {
   dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --menu "$description" 0 0 0 "${options[@]}"
 }
 
+random_fill() {
+  local target=$1 debug_skip=$2
+  local size major_minor sequence boot_id identity canary temporary choice
+  local state_dir=/run/archlinux-hardened/random-fill
+
+  if [[ "$debug_skip" == true ]]; then
+    echo '[installer] DEBUG: skipping random fill without recording completion.' >&2
+    return
+  fi
+
+  size=$(blockdev --getsize64 "$target")
+  [[ "$size" =~ ^[1-9][0-9]*$ ]] || return 1
+  major_minor=$(lsblk -dnro MAJ:MIN "$target")
+  sequence=$(cat "/sys/dev/block/$major_minor/diskseq")
+  boot_id=$(cat /proc/sys/kernel/random/boot_id)
+  # diskseq changes when a device is replaced, even if its /dev name is reused.
+  # The boot ID and size also invalidate records from another boot or disk size.
+  identity=$(printf '%s\n%s\n%s\n' "$boot_id" "$sequence" "$size")
+  (umask 077 && mkdir -p "$state_dir")
+  canary="$state_dir/${major_minor/:/_}.complete"
+
+  if [[ -f "$canary" && "$(cat "$canary")" == "$identity" ]]; then
+    choice=$(get_choice "Random fill already completed" \
+      "$target was fully filled during this live session. Partitioning and formatting will still erase the selected disk." \
+      "Fill" "Fill the disk again" "Skip" "Reuse the completed random fill") || return 1
+    if [[ "$choice" == Skip ]]; then
+      echo "Reusing the completed random fill for $target"
+      return
+    fi
+    [[ "$choice" == Fill ]] || return 1
+  fi
+
+  # Invalidate an earlier completion before starting another write attempt.
+  rm -f -- "$canary"
+  echo "Writing random bytes to $target, go grab some coffee it might take a while"
+  if ! dd bs=1M if=/dev/urandom of="$target" iflag=fullblock,count_bytes \
+    count="$size" conv=fsync status=progress; then
+    echo '[installer] Random fill failed; no completion recorded. Stopping before partitioning.' >&2
+    return 1
+  fi
+  if [[ "$(blockdev --getsize64 "$target")" != "$size" ||
+  "$(cat "/sys/dev/block/$major_minor/diskseq")" != "$sequence" ]]; then
+    echo '[installer] Disk identity or size changed during the fill; stopping.' >&2
+    return 1
+  fi
+
+  # Publish only after dd has written the exact byte count and flushed the disk.
+  temporary=$(mktemp "$state_dir/.complete.XXXXXX")
+  printf '%s\n' "$identity" >"$temporary"
+  mv -f -- "$temporary" "$canary"
+}
+
 if [ ! -d /sys/firmware/efi ]; then
   echo >&2 "legacy BIOS boot detected, this install script only works with UEFI."
   exit 1
@@ -64,15 +130,23 @@ swapoff -a || true
 umount -R /mnt 2>/dev/null || true
 cryptsetup luksClose archlinux 2>/dev/null || true
 
-# Basic settings
-timedatectl set-ntp true
-hwclock --systohc --utc
+# Give NTP a chance to correct an old RTC before HTTPS and signature checks.
+if timedatectl set-ntp true &&
+  timeout --foreground --kill-after=5s 10s /usr/lib/systemd/systemd-time-wait-sync; then
+  if ! hwclock --systohc --utc; then
+    echo '[installer] Time synchronized, but writing the hardware clock failed; continuing.' >&2
+  fi
+else
+  echo '[installer] Time synchronization was not confirmed; continuing with the current clock.' >&2
+  date --utc >&2
+  echo '[installer] If downloads fail certificate or signature checks, check the clock with timedatectl.' >&2
+fi
 
 # Keyring from ISO might be outdated, upgrading it just in case
 pacman -Sy --noconfirm --needed archlinux-keyring
 
 # Make sure some basic tools that will be used in this script are installed
-pacman -Sy --noconfirm --needed git reflector terminus-font dialog wget
+pacman -S --noconfirm --needed git reflector terminus-font dialog wget
 
 # Adjust the font size in case the screen is hard to read
 noyes=("Yes" "The font is too small" "No" "The font size is just fine")
@@ -125,8 +199,7 @@ echo "Setting up fastest mirrors..."
 reflector --country France,Germany --latest 30 --sort rate --save /etc/pacman.d/mirrorlist
 clear
 
-echo "Writing random bytes to $device, go grab some coffee it might take a while"
-dd bs=1M if=/dev/urandom of="$device" status=progress || true
+random_fill "$device" "$skip_random_fill"
 
 # Setting up partitions
 lsblk -plnx size -o name "${device}" | xargs -n1 wipefs --all

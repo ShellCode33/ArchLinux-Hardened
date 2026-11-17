@@ -19,9 +19,13 @@ I don't want that. And I don't trust Microsoft. So I decided to enroll my own ke
 
 The custom ISO is the official ArchLinux ISO with a small launcher added to it.
 It clones the latest version of this repository and starts `./install` automatically.
+Both the launcher and the installer allow up to 10 seconds for clock synchronization before
+installing packages. If that fails, they show the current time and continue. The hardware clock
+is only updated after synchronization succeeds.
 
-If installing Git or downloading the setup fails, the launcher opens a shell with network
-setup instructions. Use `iwctl` to connect to Wi-Fi, exit `iwctl`, then type `exit` again
+If installing Git or downloading the setup fails, the launcher opens a recovery shell with advice based on the error.
+Network failures get connection instructions; package or library incompatibilities suggest trying
+a newer ISO. Certificate and signature failures also suggest checking the clock first. Use `iwctl` to connect to Wi-Fi, exit `iwctl`, then type `exit` again
 to leave the shell and retry automatically. No need to restart the launcher yourself !
 
 If you stopped the launcher and want to start it again from the normal live shell:
@@ -33,22 +37,67 @@ If you stopped the launcher and want to start it again from the normal live shel
 The script will ask you which disk to use, your hardware, hostname, username and passwords.
 Read the disk confirmation carefully. Once it starts filling the disk with random data,
 go grab some coffee, it might take a while.
+The fill writes exactly the disk's size, so `No space left on device` is a real error
+and the installer will stop before partitioning.
 
 ## Using the official ArchLinux ISO
 
 If you prefer, you can also boot the [official ArchLinux ISO](https://archlinux.org/download/)
 in UEFI mode, connect to the internet and start the installer yourself.
-Run the following commands as root in the live environment.
+Run the following commands as root in the live environment. First, enable time synchronization
+and check the clock so HTTPS and package signature checks don't fail because of a wrong date:
 
 ```sh
-pacman -Syu --needed git
+timedatectl set-ntp true
+timedatectl status
+```
+
+Look for `System clock synchronized: yes` and make sure the date and time are correct.
+If it says `no`, give it a few seconds and run `timedatectl status` again.
+`NTP service: active` alone doesn't mean the clock has synchronized yet !
+
+Once synchronization is confirmed, save the time to the hardware clock:
+
+```sh
+hwclock --systohc --utc
+```
+
+If synchronization never succeeds, check your connection. Some networks block NTP;
+you can still continue if you have checked that the system date and time are correct,
+but skip the hardware clock command until synchronization is confirmed.
+
+Then update the keyring before installing Git, and download the setup:
+
+```sh
+pacman -Sy --needed archlinux-keyring
+pacman -S --needed git
 git clone https://github.com/ShellCode33/ArchLinux-Hardened
 cd ArchLinux-Hardened
 ./install
 ```
 
+Run these one at a time and make sure each command succeeds before moving on to the next.
+
+This only installs the tools needed in the disposable live environment. A full upgrade can
+fill its RAM-backed filesystem. Refreshing the databases without a full upgrade is a tradeoff
+here: with an old ISO, newer packages might be incompatible with its libraries. If that happens,
+boot a recent ISO. Don't use this approach to maintain your installed system.
+
 If you get gpg/keyring related errors, make sure your clock is correct and try again
 with a recent ISO before messing with the keyring.
+
+## If installation fails
+
+Check the error and the `stdout.log` and `stderr.log` files in the cloned repository before
+rebooting. With the custom ISO, they are under `/root/hardened-install.*/repo/`.
+Copy any logs you want to keep somewhere persistent, the live environment won't keep them after reboot.
+
+Exiting the launcher's recovery shell retries preparing and downloading the installer.
+But once `./install` has started, running it again starts the installation from the beginning,
+including erasing the disk you select. It doesn't resume where it failed !
+If the random fill already completed during this live session, the installer offers to skip
+repeating that step. This completion record is lost on reboot; partitioning and formatting
+still run even when you reuse it.
 
 ## After installation
 
