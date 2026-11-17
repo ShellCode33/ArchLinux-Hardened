@@ -20,8 +20,11 @@ I don't want that. And I don't trust Microsoft. So I decided to enroll my own ke
 The custom ISO is the official ArchLinux ISO with a small launcher added to it.
 It clones the latest version of this repository and starts `./install` automatically.
 
-If you need Wi-Fi, use `iwctl` to connect. If the launcher failed while you were offline,
-you can start it again once you are connected:
+If installing Git or downloading the setup fails, the launcher opens a shell with network
+setup instructions. Use `iwctl` to connect to Wi-Fi, exit `iwctl`, then type `exit` again
+to leave the shell and retry automatically. No need to restart the launcher yourself !
+
+If you stopped the launcher and want to start it again from the normal live shell:
 
 ```sh
 /run/archiso/bootmnt/hardened/start-install
