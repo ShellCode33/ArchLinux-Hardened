@@ -5,40 +5,81 @@
 # See /etc/audit/auditd.conf
 # Submit notifications directly: auditd discards callback stdout/stderr.
 
-LOCK_DIR=/tmp/.try-to-fix-low-on-disk-space.lock
+notify() {
+    /usr/local/bin/journal-notify --urgency "$1" "CRITICALLY LOW ON DISK SPACE" "$2" || :
+}
 
-# Creating a directory is an atomic operation,
-# this is why we use it as a mutex to prevent
-# multiple instances of this script to run.
-if ! mkdir -- "$LOCK_DIR"; then
+stop() {
+    notify critical "$1 Audit logging has not been resumed. Free space on the audit log filesystem, then run: sudo auditctl --signal resume"
+    exit 1
+}
+
+trap 'stop "Cleanup interrupted."' HUP INT TERM
+
+# /run/audit is root-owned. Keep the lock file: flock releases its lock when
+# the process exits, including after an interruption. Unlinking it is unsafe.
+umask 077
+exec 9>/run/audit/try-to-fix-low-on-disk-space.lock || stop "Cannot open the cleanup lock."
+flock --nonblock --conflict-exit-code 75 9
+lock_status=$?
+if ((lock_status == 75)); then
+    # The active callback is responsible for recovery and resuming auditd.
     exit 0
+elif ((lock_status != 0)); then
+    stop "Cannot acquire the cleanup lock."
 fi
 
-space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-/usr/local/bin/journal-notify --urgency critical "CRITICALLY LOW ON DISK SPACE" "$(printf 'Starting to take action...\nSpace left on device: %s' "$space_left")"
+# Match auditd's filesystem and configured threshold, rather than assuming /.
+read -r log_file admin_space_left < <(awk -F= '
+    { sub(/#.*/, "", $0); gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2) }
+    $1 == "log_file" { log_file = $2 }
+    $1 == "admin_space_left" { threshold = $2 }
+    END { print log_file, threshold }
+' /etc/audit/auditd.conf)
+[[ "$log_file" == /* && "$admin_space_left" =~ ^[0-9]+$ ]] || stop "Cannot read the audit log path and MiB threshold from auditd.conf."
+log_dir=$(dirname -- "$log_file")
+# Require 100 MiB of headroom to avoid immediately retriggering cleanup.
+resume_space=$((10#$admin_space_left + 100))
+
+available_mib() {
+    local blocks block_size
+    read -r blocks block_size < <(stat -f --format='%a %S' -- "$log_dir") || return 1
+    [[ "$blocks" =~ ^[0-9]+$ && "$block_size" =~ ^[0-9]+$ ]] || return 1
+    printf '%s\n' "$((blocks * block_size / 1024 / 1024))"
+}
+
+space_left=$(available_mib) || stop "Cannot measure available audit log space."
+notify critical "Starting to take action. Space left: $space_left MiB; required to resume: $resume_space MiB."
+cleanup_failed=0
 
 # Agressively cleaning pacman cache
-pacman --noconfirm -Scc
+pacman --noconfirm -Scc || cleanup_failed=1
 
 # Clean cache from users' home
-rm -rf /home/*/.cache/yay
-rm -rf /home/*/.cache/mozilla/firefox
-rm -rf /home/*/.cache/chromium
-rm -rf /home/*/.cache/pip
-rm -rf /home/*/.cache/go-build
-rm -rf /home/*/.cache/debuginfod_client
+rm -rf /home/*/.cache/yay || cleanup_failed=1
+rm -rf /home/*/.cache/mozilla/firefox || cleanup_failed=1
+rm -rf /home/*/.cache/chromium || cleanup_failed=1
+rm -rf /home/*/.cache/pip || cleanup_failed=1
+rm -rf /home/*/.cache/go-build || cleanup_failed=1
+rm -rf /home/*/.cache/debuginfod_client || cleanup_failed=1
 
 # Balance btrfs
-btrfs balance start -dusage=0 /
-btrfs balance start -dusage=50 /
-btrfs subvolume sync /
-sync
+btrfs balance start -dusage=0 / || cleanup_failed=1
+btrfs balance start -dusage=50 / || cleanup_failed=1
+btrfs subvolume sync / || cleanup_failed=1
+sync || cleanup_failed=1
 
-# Inform the admin what space is left after the cleanup
-space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-/usr/local/bin/journal-notify "CRITICALLY LOW ON DISK SPACE" "$(printf 'Necessary actions have been taken\nSpace left on device: %s' "$space_left")"
+space_left=$(available_mib) || stop "Cannot measure available space after cleanup."
+if ((space_left < resume_space)); then
+    stop "Cleanup did not recover enough space: $space_left MiB available; $resume_space MiB required."
+fi
 
 # Release the lock before resuming: another low-space action may start
 # immediately, and must not exit on our lock while logging is suspended.
-rmdir -- "$LOCK_DIR"
-kill -SIGUSR2 "$PPID"
+flock --unlock 9 || stop "Cannot release the cleanup lock."
+kill -SIGUSR2 "$PPID" || stop "Cannot ask auditd to resume logging."
+if ((cleanup_failed)); then
+    notify critical "Space recovered to $space_left MiB and auditd was asked to resume logging, but some cleanup commands failed. Inspect the system manually."
+else
+    notify normal "Space recovered to $space_left MiB. Auditd was asked to resume logging."
+fi
