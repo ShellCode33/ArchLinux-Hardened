@@ -1,0 +1,5 @@
+# Hyprland's screenshot portal creates new images here after Flameshot starts.
+# Whitelist the directory so those images become visible, but hide compositor
+# instance directories (including their control and event sockets).
+whitelist ${RUNUSER}/hypr
+blacklist ${RUNUSER}/hypr/[[:alnum:]]*/
