@@ -509,6 +509,9 @@ arch-chroot /mnt systemctl --global enable journalctl-notify
 arch-chroot /mnt systemctl --global enable pipewire
 arch-chroot /mnt systemctl --global enable wireplumber
 arch-chroot /mnt systemctl --global enable hypridle
+arch-chroot /mnt systemctl --global enable hyprpaper
+arch-chroot /mnt systemctl --global enable waybar
+arch-chroot /mnt systemctl --global enable kanshi
 arch-chroot /mnt systemctl --global enable podman.socket
 arch-chroot /mnt systemctl --global enable podman-restart
 arch-chroot /mnt systemctl --global enable llama-server

@@ -1,0 +1,15 @@
+[Unit]
+Description=Wayland output configuration
+Documentation=man:kanshi(1)
+PartOf=graphical-session.target
+Requisite=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+ExecStart=/usr/bin/kanshi
+Restart=on-failure
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target
