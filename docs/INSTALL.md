@@ -11,26 +11,43 @@ I don't want that. And I don't trust Microsoft. So I decided to enroll my own ke
 
 - Set an admin password to restrict the access to your BIOS settings (add it to your password manager)
 - Remove all the cryptographic keys from your BIOS and enter the "setup mode" (some BIOS won't let you enter the setup mode if the SB is enabled)
-- Download and boot into the [ArchLinux ISO](https://archlinux.org/download/).
+- Download the custom ISO and its `.sha256` file from the [releases](https://github.com/ShellCode33/ArchLinux-Hardened/releases).
+- Check the download with `sha256sum -c archlinux-hardened-YYYY.MM.DD-x86_64.iso.sha256` (replace the date with the one you downloaded).
+- Write the ISO to a USB drive and boot it in UEFI mode. The installer does not support legacy BIOS installations.
 
-Let's go!
+⚠ The install script will erase the entire disk you select, including all its partitions. Make sure you have backed up anything you want to keep before you start.
+
+The custom ISO is the official ArchLinux ISO with a small launcher added to it.
+It clones the latest version of this repository and starts `./install` automatically.
+
+If you need Wi-Fi, use `iwctl` to connect. If the launcher failed while you were offline,
+you can start it again once you are connected:
 
 ```sh
-$ pacman -Sy git
-$ git clone https://github.com/ShellCode33/ArchLinux-Hardened
-$ cd ArchLinux-Hardened
-$ ./install
+/run/archiso/bootmnt/hardened/start-install
 ```
 
-If you get gpg/keyring related errors, do the following :
+The script will ask you which disk to use, your hardware, hostname, username and passwords.
+Read the disk confirmation carefully. Once it starts filling the disk with random data,
+go grab some coffee, it might take a while.
+
+## Using the official ArchLinux ISO
+
+If you prefer, you can also boot the [official ArchLinux ISO](https://archlinux.org/download/)
+in UEFI mode, connect to the internet and start the installer yourself.
+Run the following commands as root in the live environment.
 
 ```sh
-$ killall gpg-agent
-$ rm -rf /etc/pacman.d/gnupg # might say resource is busy, it's ok
-$ pacman-key --init
-$ pacman-key --populate
-$ pacman -Sy archlinux-keyring
+pacman -Syu --needed git
+git clone https://github.com/ShellCode33/ArchLinux-Hardened
+cd ArchLinux-Hardened
+./install
 ```
+
+If you get gpg/keyring related errors, make sure your clock is correct and try again
+with a recent ISO before messing with the keyring.
+
+## After installation
 
 Once the installation is finished, reboot your computer and log into your freshly installed OS.
 
@@ -41,7 +58,7 @@ The install script automatically tries to insert secure boot keys into your BIOS
 To make sure they are there, run:
 
 ```
-$ sudo sbkeysync --verbose
+sudo sbkeysync --verbose
 ```
 
 You should see something like this:
