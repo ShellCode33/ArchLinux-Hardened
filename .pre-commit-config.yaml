@@ -7,6 +7,13 @@ default_stages:
 repos:
     - repo: local
       hooks:
+          - id: service-enablement
+            name: Installer service enablement tests
+            entry: python -B -m unittest discover -s tests -p test_services.py
+            language: python
+            pass_filenames: false
+            files: ^(sync$|install$|rootfs/etc/systemd/|tests/test_services\.py$)
+            require_serial: true
           - id: ruff
             name: ruff
             entry: ruff check --config .ruff.toml

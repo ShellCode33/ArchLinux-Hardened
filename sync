@@ -18,7 +18,7 @@ import zlib
 from dataclasses import dataclass, replace
 from functools import cache
 from pathlib import Path
-from typing import ClassVar, override
+from typing import ClassVar, Literal, override
 
 logger = logging.getLogger("sync")
 
@@ -240,6 +240,126 @@ def audit_packages(repo: Path) -> dict[str, str]:
             "Explicitly installed packages are not listed: %s", ", ".join(sorted(extra))
         )
     return versions
+
+
+@dataclass(frozen=True, order=True)
+class Unit:
+    scope: Literal["system", "user"]
+    name: str
+
+
+def unit_name(name: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_:@.\\-]+", name):
+        raise ValueError(f"Unsupported installer unit name: {name!r}")
+    suffixes = (
+        ".service",
+        ".socket",
+        ".timer",
+        ".target",
+        ".path",
+        ".mount",
+        ".automount",
+        ".slice",
+        ".swap",
+    )
+    return name if name.endswith(suffixes) else name + ".service"
+
+
+def installer_units(repo: Path) -> set[Unit]:
+    """Read literal enable commands without executing the installer."""
+    units: set[Unit] = set()
+    text = (repo / "install").read_text().replace("\\\n", " ")
+    for line in text.splitlines():
+        if not re.match(r"\s*arch-chroot\s+/mnt\s+(?:/usr/bin/)?systemctl\s", line):
+            continue
+        words = shlex.split(line, comments=True)[3:]
+        if "enable" not in words:
+            continue
+        options = {word for word in words if word.startswith("-")}
+        if options - {
+            "--global",
+            "--system",
+            "--now",
+            "--no-reload",
+            "--quiet",
+            "--force",
+        }:
+            raise ValueError(f"Unsupported installer enable options: {line.strip()}")
+        if "--system" in options and "--global" in options:
+            raise ValueError("Conflicting installer systemctl scopes")
+        scope: Literal["system", "user"] = "user" if "--global" in options else "system"
+        names = [
+            word for word in words if not word.startswith("-") and word != "enable"
+        ]
+        if not names:
+            raise ValueError("Installer enable command has no unit names")
+        units.update(Unit(scope, unit_name(name)) for name in names)
+    if not units:
+        raise ValueError("No installer service enablement declarations found")
+    return units
+
+
+def audit_services(repo: Path, user: str | None) -> None:
+    units = installer_units(repo)
+    account = pwd.getpwnam(user) if user else None
+    unchecked = 0
+    missing: dict[str, list[str]] = {"system": [], "user": []}
+    for unit in sorted(units):
+        # Read persistent enablement directly from disk, without a manager bus.
+        command = ["/usr/bin/systemctl", "--root=/"]
+        if unit.scope == "system":
+            command.append("--system")
+        elif account is None:
+            command.append("--global")
+        else:
+            command.append("--user")
+            if account.pw_uid != os.geteuid():
+                command = [
+                    "/usr/bin/runuser",
+                    "-u",
+                    account.pw_name,
+                    "--",
+                    "/usr/bin/env",
+                    "-i",
+                    f"HOME={account.pw_dir}",
+                    *command,
+                ]
+        try:
+            query = subprocess.run(
+                [*command, "is-enabled", unit.name],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            state = query.stdout.strip()
+            if query.returncode not in {0, 1, 4} or not state:
+                if query.returncode == 4 and not query.stderr.strip():
+                    state = "not-found"
+                else:
+                    raise ValueError(
+                        query.stderr.strip()
+                        or f"systemctl exited with status {query.returncode}"
+                    )
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            unchecked += 1
+            logger.warning("Cannot check %s unit %s: %s", unit.scope, unit.name, error)
+            continue
+        if state not in {"enabled", "alias"}:
+            missing[unit.scope].append(f"{unit.name} ({state})")
+    user_label = f"user ({user})" if user else "global user"
+    for scope, label in (("system", "system"), ("user", user_label)):
+        if missing[scope]:
+            logger.warning(
+                "Installer-enabled %s units are not persistently enabled: %s",
+                label,
+                ", ".join(missing[scope]),
+            )
+    logger.info(
+        "Service enablement: %d units checked, %d anomalies, %d unchecked",
+        len(units) - unchecked,
+        sum(map(len, missing.values())),
+        unchecked,
+    )
 
 
 def decode_mtree(value: str) -> str:
@@ -558,6 +678,10 @@ def main() -> int:
         audit_subvolumes(repo, user)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         logger.warning("Cannot audit Btrfs subvolumes: %s", error)
+    try:
+        audit_services(repo, user)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        logger.warning("Cannot audit service enablement: %s", error)
     for path in git_paths(repo, "ls-files", "-z", "--others", "--exclude-standard"):
         logger.warning("Ignoring untracked file: %s", path)
     tracked = set(git_paths(repo, "ls-files", "-z"))

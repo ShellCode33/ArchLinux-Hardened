@@ -509,6 +509,7 @@ arch-chroot /mnt systemctl --global enable dbus-broker
 arch-chroot /mnt systemctl --global enable journalctl-notify
 arch-chroot /mnt systemctl --global enable pipewire
 arch-chroot /mnt systemctl --global enable wireplumber
+arch-chroot /mnt systemctl --global enable gammastep
 arch-chroot /mnt systemctl --global enable hypridle
 arch-chroot /mnt systemctl --global enable hyprpaper
 arch-chroot /mnt systemctl --global enable waybar
