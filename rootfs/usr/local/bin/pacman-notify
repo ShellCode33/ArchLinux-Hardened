@@ -1,23 +1,15 @@
 #!/usr/bin/python3 -u
 
-import json
 import os
 import sys
 from subprocess import run
 
 
 def notify(title: str, body: str, icon: str | None = None) -> None:
-    content = {
-        "title": title,
-        "body": body,
-        "urgency": "normal",
-    }
-
+    command = ["/usr/local/bin/journal-notify", "--urgency", "normal"]
     if icon:
-        content["icon"] = icon
-
-    # See /usr/local/bin/journalctl-notify
-    print("NOTIFY", json.dumps(content))
+        command += ["--icon", icon]
+    run([*command, "--", title, body], check=False)
 
 
 def check_residual_files() -> None:

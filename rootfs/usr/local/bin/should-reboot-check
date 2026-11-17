@@ -1,24 +1,24 @@
 #!/usr/bin/python3 -u
 
-import json
 import os
 import re
 from difflib import SequenceMatcher
-from subprocess import check_output
+from subprocess import check_output, run
 
 
 def notify(title: str, body: str) -> None:
-    # See /usr/local/bin/journalctl-notify
-    print(
-        "NOTIFY",
-        json.dumps(
-            {
-                "urgency": "critical",
-                "title": title,
-                "body": body,
-                "icon": "system-reboot",
-            }
-        ),
+    run(
+        [
+            "/usr/local/bin/journal-notify",
+            "--urgency",
+            "critical",
+            "--icon",
+            "system-reboot",
+            "--",
+            title,
+            body,
+        ],
+        check=False,
     )
 
 

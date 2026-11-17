@@ -1,6 +1,5 @@
 #!/usr/bin/python3 -u
 
-import json
 import os
 import os.path
 import socket
@@ -21,10 +20,18 @@ RESTIC_REPO_NAME = os.getenv("RESTIC_REPO_NAME")
 
 def notify(title: str, body: str, urgency: str = "normal") -> None:
     icon = "computer-fail" if urgency == "critical" else "synology-cloud-station-backup"
-
-    print(
-        "NOTIFY",
-        json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}),
+    run(
+        [
+            "/usr/local/bin/journal-notify",
+            "--urgency",
+            urgency,
+            "--icon",
+            icon,
+            "--",
+            title,
+            body,
+        ],
+        check=False,
     )
 
 

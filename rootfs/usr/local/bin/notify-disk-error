@@ -3,6 +3,5 @@
 # This script is run by auditd in order to warn the
 # admin that a disk failure has been detected.
 # See /etc/audit/auditd.conf
-
-# See /usr/local/bin/journalctl-notify for log format
-echo 'NOTIFY {"urgency": "critical", "title": "DISK FAILURE", "body": "Detected by auditd, please investigate"}'
+# Submit directly to the journal: auditd discards callback stdout/stderr.
+/usr/local/bin/journal-notify --urgency critical "DISK FAILURE" "Detected by auditd, please investigate"

@@ -3,6 +3,7 @@
 # This script is run as a last resort by auditd in
 # order to try to fix a very low disk space available
 # See /etc/audit/auditd.conf
+# Submit notifications directly: auditd discards callback stdout/stderr.
 
 LOCK_DIR=/tmp/.try-to-fix-low-on-disk-space.lock
 
@@ -14,7 +15,7 @@ if ! mkdir -- "$LOCK_DIR"; then
 fi
 
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-printf '%s\n' "NOTIFY {\"urgency\": \"critical\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Starting to take action...\\nSpace left on device: $space_left\"}"
+/usr/local/bin/journal-notify --urgency critical "CRITICALLY LOW ON DISK SPACE" "$(printf 'Starting to take action...\nSpace left on device: %s' "$space_left")"
 
 # Agressively cleaning pacman cache
 pacman --noconfirm -Scc
@@ -35,14 +36,9 @@ sync
 
 # Inform the admin what space is left after the cleanup
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
-printf '%s\n' "NOTIFY {\"urgency\": \"normal\", \"title\": \"CRITICALLY LOW ON DISK SPACE\", \"body\": \"Necessary actions have been taken\\nSpace left on device: $space_left\"}"
+/usr/local/bin/journal-notify "CRITICALLY LOW ON DISK SPACE" "$(printf 'Necessary actions have been taken\nSpace left on device: %s' "$space_left")"
 
-# Tell auditd to try to resume logging
-kill -SIGUSR2 $PPID
-
-# We wait a bit for auditd to resume because
-# if it decides to rerun this script immediatly
-# we are still holding the lock causing the new
-# instance to exit.
-sleep 1s
+# Release the lock before resuming: another low-space action may start
+# immediately, and must not exit on our lock while logging is suspended.
 rmdir -- "$LOCK_DIR"
+kill -SIGUSR2 "$PPID"

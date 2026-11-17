@@ -1,72 +1,79 @@
 #!/usr/bin/python3 -u
+"""Turn explicit journal requests and selected system events into notifications."""
 
 import asyncio
 import contextlib
+import html
 import json
-import sys
-from asyncio.subprocess import DEVNULL, PIPE, Process
+import logging
+import os
+import re
+from asyncio.subprocess import PIPE
+from typing import cast
 
-# Sleeping a little bit is very important to prevent reaching
-# the TasksMax limit of systemd.
-# See: https://unix.stackexchange.com/questions/253903/creating-threads-fails-with-resource-temporarily-unavailable-with-4-3-kernel
-# It can happen that you have many logs to report which could cause this script to
-# spawn many notify-send processes and therefore reaching the TasksMax limit.
-# It will basically crash.
+type Record = dict[str, object]
+logger = logging.getLogger("journalctl-notify")
 SLEEP_BETWEEN_NOTIFY = 0.1
+MAX_MESSAGE_BYTES = 128 * 1024
 
 
-async def is_running(proc: Process) -> bool:
-    with contextlib.suppress(asyncio.TimeoutError):
-        await asyncio.wait_for(proc.wait(), 1e-6)
-    return proc.returncode is None
+def field(record: Record, name: str) -> str:
+    value = record.get(name)
+    return value if isinstance(value, str) else ""
 
 
 async def send_notify(
-    title: str,
-    body: str,
-    urgency: str,
-    icon: str | None = None,
+    title: str, body: str, urgency: str, icon: str | None = None
 ) -> None:
-    params = ["--urgency", urgency, title, body]
-
+    if not title.strip() or urgency not in {"low", "normal", "critical"}:
+        raise ValueError("invalid notification title or urgency")
+    if any("\0" in value for value in (title, body, icon or "")):
+        raise ValueError("notification contains a NUL character")
+    if (
+        sum(len(value.encode()) for value in (title, body, icon or ""))
+        > MAX_MESSAGE_BYTES
+    ):
+        raise ValueError("notification is too large")
+    params = ["/usr/bin/notify-send", "--urgency", urgency]
     if icon:
         params += ["--icon", icon]
-
-    await asyncio.create_subprocess_exec("/usr/bin/notify-send", *params)
+    # Treat script and external log messages as text, not notification markup.
+    params += ["--", title, html.escape(body)]
+    process = await asyncio.create_subprocess_exec(*params)
+    try:
+        await asyncio.wait_for(process.wait(), timeout=10)
+        if process.returncode:
+            logger.warning("notify-send exited with status %s", process.returncode)
+    finally:
+        if process.returncode is None:
+            process.terminate()
+            await process.wait()
     await asyncio.sleep(SLEEP_BETWEEN_NOTIFY)
 
 
-async def try_process_notify(line: bytes) -> None:
-    begin = line.find(b"NOTIFY")
-
-    # Early return for a line which is not our responsibility to parse
-    if begin == -1:
+async def try_process_notify(record: Record) -> None:
+    if field(record, "DESKTOP_NOTIFICATION") == "1":
+        await send_notify(
+            field(record, "NOTIFY_TITLE"),
+            field(record, "MESSAGE"),
+            field(record, "NOTIFY_URGENCY"),
+            field(record, "NOTIFY_ICON") or None,
+        )
         return
-
-    log = line[begin + len("NOTIFY") :].strip().decode()
-
-    try:
-        log = json.loads(log)
-    except json.JSONDecodeError:
-        print("Wrong log format:", log)
+    # Compatibility during deployment, including local scripts outside Git.
+    message = field(record, "MESSAGE")
+    if not message.startswith("NOTIFY "):
         return
-
-    if len(log) == 3:
-        urgency = log["urgency"]
-        title = log["title"]
-        body = log["body"]
-        await send_notify(title, body, urgency)
-
-    elif len(log) == 4:
-        urgency = log["urgency"]
-        icon = log["icon"]
-        title = log["title"]
-        body = log["body"]
-        await send_notify(title, body, urgency, icon)
-
-    else:
-        print("Wrong log format:", log)
-        return
+    data: object = json.loads(message.removeprefix("NOTIFY "))
+    if not isinstance(data, dict):
+        raise ValueError("legacy notification must be an object")
+    notification = cast(Record, data)
+    await send_notify(
+        field(notification, "title"),
+        field(notification, "body"),
+        field(notification, "urgency"),
+        field(notification, "icon") or None,
+    )
 
 
 async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
@@ -74,8 +81,7 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
     if line_as_bytes.find(b"FIREWALL REJECTED") == -1:
         return
 
-    begin = line_as_bytes.find(b":")
-    line = line_as_bytes[begin + 1 :].decode().strip()
+    line = line_as_bytes.decode().strip()
     tokens = line.split()
     content: dict[str, str] = {}
 
@@ -132,103 +138,97 @@ async def try_process_firewall_rejection(line_as_bytes: bytes) -> None:
     await send_notify(f"FIREWALL {chain} DENIED", body, "critical")
 
 
-async def try_process_systemd_service_failure(line_as_bytes: bytes) -> None:
-    line_begin = line_as_bytes.find(b"systemd[")
-
-    # Early return for a line which is not our responsibility to parse
-    if line_begin == -1:
+async def process_record(record: Record) -> None:
+    message = field(record, "MESSAGE")
+    if field(record, "_TRANSPORT") == "kernel":
+        await try_process_firewall_rejection(message.encode())
         return
-
-    # Skip date and hostname + remove commas
-    line_as_bytes = line_as_bytes[line_begin:].replace(b",", b" ")
-
-    first_colon_index = line_as_bytes.find(b":")
-
-    if first_colon_index == -1:
+    # System requests go to every session running this listener; user requests
+    # go only to their own user. Never trust a caller-supplied SYSLOG_IDENTIFIER alone.
+    if field(record, "_UID") not in {"0", str(os.getuid())}:
         return
-
-    second_colon_index = line_as_bytes.find(b":", first_colon_index + 1)
-
-    if second_colon_index == -1:
-        return
-
-    service_name = line_as_bytes[first_colon_index + 1 : second_colon_index].strip()
-    service_name = service_name.decode()
-    tokens = line_as_bytes[second_colon_index + 1 :].decode().strip().split()
-    variables = {}
-
-    for token in tokens:
-        if "=" in token:
-            key, value = token.split("=")
-            variables[key] = value
-
-    # See man systemd.exec if you want to support more.
-    if ("code=exited" in tokens and "status=0/SUCCESS" not in tokens) or (
-        "code=dumped" in tokens
+    await try_process_notify(record)
+    if (
+        field(record, "_UID") == "0"
+        and field(record, "_SYSTEMD_UNIT") == "auditd.service"
+        and field(record, "SYSLOG_IDENTIFIER") == "auditd"
+        and message.startswith("Audit daemon is low on disk space for logging.")
     ):
+        await send_notify("LOW ON DISK SPACE", message, "critical")
+    if field(record, "_COMM") != "systemd":
+        return
+    match = re.search(
+        r"^([^: ]+): .*?\bcode=(exited|dumped),?\s+status=([^ ,]+)", message
+    )
+    if match and not (match[2] == "exited" and match[3] == "0/SUCCESS"):
         await send_notify(
             "SYSTEMD SERVICE ISSUE",
-            f"{service_name} {variables['code']} with status {variables['status']}",
+            f"{match[1]} {match[2]} with status {match[3]}",
             "critical",
         )
 
 
+async def read_journal(scope: str, queue: asyncio.Queue[bytes]) -> None:
+    # Preserve the existing boot-history replay policy. JSON keeps multiline
+    # messages and source metadata intact; a bounded queue limits buffering.
+    process = await asyncio.create_subprocess_exec(
+        "/usr/bin/journalctl",
+        "--boot",
+        scope,
+        "--follow",
+        "--lines=all",
+        "--output=json",
+        "--all",
+        stdout=PIPE,
+        limit=1024 * 1024,
+    )
+    try:
+        if process.stdout is None:
+            raise RuntimeError("journal reader has no stdout")
+        async for line in process.stdout:
+            await queue.put(line)
+        status = await process.wait()
+        raise RuntimeError(f"{scope} journal reader stopped with status {status}")
+    finally:
+        if process.returncode is None:
+            process.terminate()
+        await process.wait()
+
+
+async def consume(queue: asyncio.Queue[bytes]) -> None:
+    while True:
+        line = await queue.get()
+        try:
+            data: object = json.loads(line)
+            if not isinstance(data, dict):
+                raise ValueError("journal entry is not an object")
+            await process_record(cast(Record, data))
+        except (ValueError, OSError) as error:
+            logger.warning("Cannot process journal entry: %s", error)
+        finally:
+            queue.task_done()
+
+
 async def main() -> None:
-    journal_system = await asyncio.create_subprocess_exec(
-        "journalctl",
-        "--boot",
-        "--system",
-        "--follow",
-        "--lines=all",
-        stdout=PIPE,
-        stderr=DEVNULL,
-    )
-
-    journal_user = await asyncio.create_subprocess_exec(
-        "journalctl",
-        "--boot",
-        "--user",
-        "--follow",
-        "--lines=all",
-        stdout=PIPE,
-        stderr=DEVNULL,
-    )
-
-    while await is_running(journal_system) and await is_running(journal_user):
-        for journal in (journal_system, journal_user):
-            while (
-                True
-            ):  # Try to read as much lines as possible while there are some available
-                try:
-                    line = await asyncio.wait_for(
-                        journal.stdout.readline(),
-                        timeout=1,
-                    )  # The lower the timeout, the higher the CPU usage
-                except TimeoutError:
-                    # No new line available yet, try the next journal by breaking out
-                    break
-
-                try:
-                    await try_process_notify(line)
-                    await try_process_firewall_rejection(line)
-                    await try_process_systemd_service_failure(line)
-                except Exception as exc:  # noqa: BLE001
-                    await send_notify(
-                        "critical",
-                        "JOURNALCTL NOTIFIER PARSER ERROR",
-                        str(exc),
-                    )
-
-    # This script should never exit, if it does something went wrong, exit with status 1
-    print("Error: one of the subprocesses exited")
-
-    await send_notify(
-        "critical",
-        "JOURNALCTL NOTIFIER STOPPED",
-        "One of the journalctl subprocess exited, that should not happen",
-    )
-    sys.exit(1)
+    queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=128)
+    try:
+        async with asyncio.TaskGroup() as tasks:
+            tasks.create_task(read_journal("--system", queue))
+            tasks.create_task(read_journal("--user", queue))
+            tasks.create_task(consume(queue))
+    except ExceptionGroup:
+        logger.exception("Journal monitoring stopped")
+        await send_notify(
+            "JOURNALCTL NOTIFIER STOPPED",
+            "Journal monitoring failed; inspect the service logs.",
+            "critical",
+        )
+        raise
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    logging.basicConfig(
+        level=logging.INFO, format="[%(name)s] [%(levelname)s] %(message)s"
+    )
+    with contextlib.suppress(KeyboardInterrupt):
+        asyncio.run(main())

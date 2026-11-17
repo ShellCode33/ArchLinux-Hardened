@@ -7,7 +7,6 @@ See: /usr/local/bin/restic-backup-to-cloud
 """
 
 import hashlib
-import json
 import os
 import os.path
 import socket
@@ -29,17 +28,20 @@ BACKUP_PREFIX = f"backup-home-{USERNAME}-{HOSTNAME}"
 GPG_RECIPIENT = os.environ["GPG_RECIPIENT"]
 
 
-def notify(title: str, body: str, urgency: str = "normal"):
-
-    if urgency == "critical":
-        icon = "computer-fail"
-    else:
-        icon = "synology-cloud-station-backup"
-
-    # See /usr/local/bin/journalctl-notify
-    print(
-        "NOTIFY",
-        json.dumps({"title": title, "body": body, "urgency": urgency, "icon": icon}),
+def notify(title: str, body: str, urgency: str = "normal") -> None:
+    icon = "computer-fail" if urgency == "critical" else "synology-cloud-station-backup"
+    run(
+        [
+            "/usr/local/bin/journal-notify",
+            "--urgency",
+            urgency,
+            "--icon",
+            icon,
+            "--",
+            title,
+            body,
+        ],
+        check=False,
     )
 
 

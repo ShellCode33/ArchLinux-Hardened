@@ -7,11 +7,10 @@ Should be run periodically using a systemd timer.
 See /etc/systemd/system/auditor.{service,timer}
 """
 
-import json
 import os
 import sys
 from stat import S_IRWXO, S_ISDIR, S_ISREG, S_IWOTH, S_IXOTH
-from subprocess import check_output
+from subprocess import check_output, run
 
 import requests
 
@@ -189,8 +188,11 @@ def check_local_cves() -> list[tuple[str, str]]:
     return local_cves
 
 
-def report(title: str, body: str, urgency: str = "critical"):
-    print("NOTIFY", json.dumps({"urgency": urgency, "title": title, "body": body}))
+def report(title: str, body: str, urgency: str = "critical") -> None:
+    run(
+        ["/usr/local/bin/journal-notify", "--urgency", urgency, "--", title, body],
+        check=False,
+    )
 
 
 def main() -> None:

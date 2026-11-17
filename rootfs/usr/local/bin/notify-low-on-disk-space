@@ -3,6 +3,7 @@
 # This script is run by auditd in order to warn the
 # admin that the system is getting low on disk space
 # See /etc/audit/auditd.conf
+# auditd redirects stdout/stderr to /dev/null, so send notifications to the journal explicitly.
 
 LOCK_DIR=/tmp/.notify-low-on-disk-space.lock
 
@@ -16,14 +17,8 @@ fi
 sync
 space_left="$(btrfs filesystem usage / | grep df | awk '{ print $4 }')"
 
-echo "NOTIFY {\"urgency\": \"critical\", \"title\": \"LOW ON DISK SPACE\", \"body\": \"Space left on device: $space_left\"}"
+/usr/local/bin/journal-notify --urgency critical "LOW ON DISK SPACE" "Space left on device: $space_left"
 
-# Tell auditd to try to resume logging
-kill -SIGUSR2 $PPID
-
-# We wait a bit for auditd to resume because
-# if it decides to rerun this script immediatly
-# we are still holding the lock causing the new
-# instance to exit.
-sleep 1s
+# Release before resuming so a retriggered callback cannot leave auditd suspended.
 rmdir -- "$LOCK_DIR"
+kill -SIGUSR2 "$PPID"

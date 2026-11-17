@@ -1,0 +1,65 @@
+#!/usr/bin/python3
+"""Submit a desktop notification request as a structured journal entry."""
+
+import argparse
+import socket
+import struct
+import sys
+
+PRIORITIES = {"low": "6", "normal": "5", "critical": "2"}
+MAX_ENTRY_BYTES = 128 * 1024
+
+
+def encode_entry(fields: dict[str, str]) -> bytes:
+    result = bytearray()
+    for name, value in fields.items():
+        if "\0" in value:
+            raise ValueError("notification fields cannot contain NUL characters")
+        data = value.encode("utf-8")
+        if b"\n" in data:
+            result.extend(name.encode() + b"\n" + struct.pack("<Q", len(data)))
+            result.extend(data + b"\n")
+        else:
+            result.extend(name.encode() + b"=" + data + b"\n")
+    if len(result) > MAX_ENTRY_BYTES:
+        raise ValueError("notification exceeds the 128 KiB journal entry limit")
+    return bytes(result)
+
+
+def notify(title: str, body: str, urgency: str, icon: str | None = None) -> None:
+    if not title.strip():
+        raise ValueError("notification title cannot be empty")
+    fields = {
+        "SYSLOG_IDENTIFIER": "journal-notify",
+        "PRIORITY": PRIORITIES[urgency],
+        "DESKTOP_NOTIFICATION": "1",
+        "NOTIFY_TITLE": title,
+        "NOTIFY_URGENCY": urgency,
+        "MESSAGE": body,
+    }
+    if icon:
+        fields["NOTIFY_ICON"] = icon
+    entry = encode_entry(fields)
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as journal:
+        journal.settimeout(2)
+        journal.connect("/run/systemd/journal/socket")
+        journal.sendall(entry)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--urgency", choices=PRIORITIES, default="normal")
+    parser.add_argument("--icon")
+    parser.add_argument("title")
+    parser.add_argument("body")
+    args = parser.parse_args()
+    try:
+        notify(args.title, args.body, args.urgency, args.icon)
+    except (OSError, ValueError) as error:
+        print(f"[journal-notify] [ERROR] {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,29 +1,24 @@
 #!/usr/bin/python3 -u
 
-import json
 import os
 import sys
 from subprocess import DEVNULL, PIPE, CalledProcessError, run
 
 
 def notify(body: str, urgency: str = "normal") -> None:
-
-    if urgency == "critical":
-        icon = "computer-fail"
-    else:
-        icon = "drive-removable-media-usb"
-
-    # See /usr/local/bin/journalctl-notify
-    print(
-        "NOTIFY",
-        json.dumps(
-            {
-                "title": "USB DEVICE MANAGER",
-                "body": body,
-                "urgency": urgency,
-                "icon": icon,
-            }
-        ),
+    icon = "computer-fail" if urgency == "critical" else "drive-removable-media-usb"
+    run(
+        [
+            "/usr/local/bin/journal-notify",
+            "--urgency",
+            urgency,
+            "--icon",
+            icon,
+            "--",
+            "USB DEVICE MANAGER",
+            body,
+        ],
+        check=False,
     )
 
 
