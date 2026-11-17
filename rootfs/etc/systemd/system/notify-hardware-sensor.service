@@ -1,0 +1,16 @@
+[Unit]
+Description=Notify about hardware sensor anomalies
+ConditionPathIsDirectory=/sys/class/hwmon
+
+[Service]
+Type=simple
+ExecStart=notify-hardware-sensor
+Restart=on-failure
+RestartSec=10s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

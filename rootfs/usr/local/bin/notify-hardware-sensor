@@ -1,0 +1,333 @@
+#!/usr/bin/python3
+"""Notify once per hwmon anomaly, rearming after three healthy checks."""
+
+import argparse
+import logging
+import os
+import subprocess
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+logger = logging.getLogger("notify-hardware-sensor")
+HWMON_PATH = Path("/sys/class/hwmon")
+CRITICAL = {"fault", "intrusion", "crit", "lcrit", "emergency", "lemergency"}
+
+
+@dataclass(frozen=True)
+class Anomaly:
+    body: str
+    critical: bool
+
+
+@dataclass(frozen=True)
+class Sample:
+    conditions: dict[str, Anomaly]
+    complete: bool = True
+
+
+type Readings = dict[str, Sample]
+
+
+class Sensor:
+    scale: int = 1
+    unit: str = ""
+
+    def __init__(
+        self, chip: Path, chip_name: str, sensor_id: str, attributes: set[str]
+    ) -> None:
+        self.chip = chip
+        self.sensor_id = sensor_id
+        self.attributes = attributes
+        self.complete = True
+        # hwmon numbers can change; use the physical device directory instead.
+        self.key = f"{chip.resolve().parent}/{chip_name}/{sensor_id}"
+        try:
+            label = (chip / f"{sensor_id}_label").read_text().strip()
+        except OSError:
+            label = sensor_id
+        self.name = f"{chip_name} ({chip.name}) / {label}"
+
+    def read(self, attribute: str) -> int | None:
+        if attribute not in self.attributes:
+            return None
+        try:
+            return int(
+                (self.chip / f"{self.sensor_id}_{attribute}").read_text().strip()
+            )
+        except (OSError, ValueError):
+            # A missing optional attribute is fine; an unreadable advertised one
+            # does not establish recovery from an existing anomaly.
+            self.complete = False
+            return None
+
+    def alarms(self) -> dict[str, Anomaly]:
+        result: dict[str, Anomaly] = {}
+        for attribute in (
+            "alarm",
+            "min_alarm",
+            "max_alarm",
+            "lcrit_alarm",
+            "crit_alarm",
+            "lemergency_alarm",
+            "emergency_alarm",
+        ):
+            if self.read(attribute) == 1:
+                reason = attribute.removesuffix("_alarm")
+                result[reason] = Anomaly(
+                    f"{self.name}: {reason.replace('_', ' ')} alarm", reason in CRITICAL
+                )
+        return result
+
+    def check_limits(
+        self,
+        reading: int | None,
+        *,
+        lower: dict[str, int | None],
+        upper: dict[str, int | None],
+    ) -> dict[str, Anomaly]:
+        result = self.alarms()
+        if reading is None:
+            return result
+        for limits, high in ((lower, False), (upper, True)):
+            for limit, threshold in limits.items():
+                if threshold is None:
+                    continue
+                exceeded = reading > threshold if high else reading < threshold
+                if high and limit in {"crit", "emergency"} and reading == threshold:
+                    exceeded = True
+                if exceeded:
+                    direction = "above" if high else "below"
+                    if reading == threshold:
+                        direction = "at"
+                    result[limit] = Anomaly(
+                        f"{self.name}: {reading / self.scale:g} {self.unit}, {direction} "
+                        f"{limit} limit {threshold / self.scale:g} {self.unit}",
+                        limit in CRITICAL,
+                    )
+        return result
+
+    def anomalies(self) -> dict[str, Anomaly]:
+        raise NotImplementedError
+
+    def sample(self) -> Sample:
+        if self.read("enable") == 0:
+            return Sample({})
+        if self.read("fault") == 1:
+            conditions = {
+                "fault": Anomaly(
+                    f"{self.name}: sensor fault; reading is unreliable", True
+                )
+            }
+        else:
+            conditions = self.anomalies()
+        return Sample(conditions, self.complete)
+
+
+class TempSensor(Sensor):
+    scale = 1000
+    unit = "°C"
+
+    def anomalies(self) -> dict[str, Anomaly]:
+        temperature = self.read("input")
+        return self.check_limits(
+            temperature,
+            lower={"min": self.read("min"), "lcrit": self.read("lcrit")},
+            upper={
+                "max": self.read("max"),
+                "crit": self.read("crit"),
+                "emergency": self.read("emergency"),
+            },
+        )
+
+
+class VoltageSensor(Sensor):
+    scale = 1000
+    unit = "V"
+
+    def anomalies(self) -> dict[str, Anomaly]:
+        voltage = self.read("input")
+        return self.check_limits(
+            voltage,
+            lower={
+                "min": self.read("min"),
+                "lcrit": self.read("lcrit"),
+                "lemergency": self.read("lemergency"),
+            },
+            upper={
+                "max": self.read("max"),
+                "crit": self.read("crit"),
+                "emergency": self.read("emergency"),
+            },
+        )
+
+
+class CurrentSensor(Sensor):
+    scale = 1000
+    unit = "A"
+
+    def anomalies(self) -> dict[str, Anomaly]:
+        current = self.read("input")
+        return self.check_limits(
+            current,
+            lower={"min": self.read("min"), "lcrit": self.read("lcrit")},
+            upper={
+                "max": self.read("max"),
+                "crit": self.read("crit"),
+                "emergency": self.read("emergency"),
+            },
+        )
+
+
+class PowerSensor(Sensor):
+    scale = 1000000
+    unit = "W"
+
+    def anomalies(self) -> dict[str, Anomaly]:
+        power = self.read("input")
+        if power is None:
+            power = self.read("average")
+        return self.check_limits(
+            power, lower={}, upper={"max": self.read("max"), "crit": self.read("crit")}
+        )
+
+
+class FanSensor(Sensor):
+    unit = "RPM"
+
+    def anomalies(self) -> dict[str, Anomaly]:
+        speed = self.read("input")
+        return self.check_limits(
+            speed, lower={"min": self.read("min")}, upper={"max": self.read("max")}
+        )
+
+
+class IntrusionSensor(Sensor):
+    def anomalies(self) -> dict[str, Anomaly]:
+        # Read only: an intrusion latch must be acknowledged manually.
+        if self.read("alarm") == 1:
+            return {"intrusion": Anomaly(f"{self.name}: chassis intrusion alarm", True)}
+        return {}
+
+
+class Chip:
+    def __init__(self, path: Path) -> None:
+        self.name = (path / "name").read_text().strip()
+        self.sensors: list[Sensor] = []
+        attributes: dict[str, set[str]] = {}
+        for file in sorted(path.iterdir()):
+            sensor_id, separator, attribute = file.name.partition("_")
+            if separator:
+                attributes.setdefault(sensor_id, set()).add(attribute)
+        sensor_types: tuple[tuple[str, type[Sensor]], ...] = (
+            ("temp", TempSensor),
+            ("in", VoltageSensor),
+            ("curr", CurrentSensor),
+            ("power", PowerSensor),
+            ("fan", FanSensor),
+            ("intrusion", IntrusionSensor),
+        )
+        for sensor_id, files in attributes.items():
+            for prefix, sensor_type in sensor_types:
+                if sensor_id.startswith(prefix) and sensor_id[len(prefix) :].isdigit():
+                    self.sensors.append(sensor_type(path, self.name, sensor_id, files))
+                    break
+
+
+def scan_sensors(root: Path = HWMON_PATH) -> Readings:
+    readings: Readings = {}
+    for path in sorted(root.glob("hwmon*")):
+        try:
+            chip = Chip(path)
+        except OSError:
+            # Devices can disappear between discovery and reading.
+            continue
+        for sensor in chip.sensors:
+            readings[sensor.key] = sensor.sample()
+    return readings
+
+
+def notify(items: list[Anomaly]) -> bool:
+    body = "\n".join(item.body for item in items[:40])
+    if len(items) > 40:
+        body += f"\n… and {len(items) - 40} other anomalies"
+    urgency = "critical" if any(item.critical for item in items) else "normal"
+    try:
+        subprocess.run(
+            [
+                "journal-notify",
+                "--urgency",
+                urgency,
+                "--",
+                "HARDWARE SENSOR ALERT",
+                body,
+            ],
+            check=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        logger.warning("Cannot submit hardware notification: %s", error)
+        return False
+    return True
+
+
+class Monitor:
+    def __init__(self) -> None:
+        self.active: dict[tuple[str, str], int] = {}
+
+    def check(self, readings: Readings) -> None:
+        new: dict[tuple[str, str], Anomaly] = {}
+        for sensor, sample in readings.items():
+            for reason, anomaly in sample.conditions.items():
+                key = sensor, reason
+                if key in self.active:
+                    self.active[key] = 0
+                else:
+                    new[key] = anomaly
+        for key in list(self.active):
+            sensor, reason = key
+            if sensor not in readings:
+                del self.active[key]
+            # Failed reads do not establish recovery and rearm notifications.
+            elif not readings[sensor].complete:
+                self.active[key] = 0
+            elif reason not in readings[sensor].conditions:
+                self.active[key] += 1
+                if self.active[key] >= 3:
+                    del self.active[key]
+        if new and notify(list(new.values())):
+            self.active.update(dict.fromkeys(new, 0))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="check once instead of monitoring continuously",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=os.environ.get("CHECK_FREQUENCY", "10"),
+        help="seconds between checks (default: CHECK_FREQUENCY or 10)",
+    )
+    args = parser.parse_args()
+    if not 0 < args.interval < float("inf"):
+        parser.error("--interval must be a finite positive number")
+    monitor = Monitor()
+    while True:
+        monitor.check(scan_sensors())
+        if args.once:
+            return
+        time.sleep(args.interval)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="[%(name)s] [%(levelname)s] %(message)s"
+    )
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

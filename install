@@ -490,6 +490,7 @@ arch-chroot /mnt systemctl enable libvirtd
 arch-chroot /mnt systemctl enable check-secure-boot
 arch-chroot /mnt systemctl enable apparmor
 arch-chroot /mnt systemctl enable auditd-notify
+arch-chroot /mnt systemctl enable notify-hardware-sensor
 arch-chroot /mnt systemctl enable local-forwarding-proxy
 
 # Configure systemd timers
