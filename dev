@@ -2,31 +2,31 @@
 set -eu
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 case "${1:-lint}" in
-  lint | check) stage=pre-commit ;;
-  format) stage=manual ;;
-  *)
-    echo 'Usage: ./dev [lint|format] [files...]' >&2
-    exit 2
-    ;;
+    lint | check) stage=pre-commit ;;
+    format) stage=manual ;;
+    *)
+        echo 'Usage: ./dev [lint|format] [files...]' >&2
+        exit 2
+        ;;
 esac
 [ "$#" -eq 0 ] || shift
 if ! command -v uv >/dev/null 2>&1; then
-  echo 'Install uv to run the pinned tools (on Arch: sudo pacman -S uv).' >&2
-  exit 1
+    echo 'Install uv to run the pinned tools (on Arch: sudo pacman -S uv).' >&2
+    exit 1
 fi
 if [ "$#" -eq 0 ]; then
-  set -- --all-files
+    set -- --all-files
 else
-  set -- --files "$@"
+    set -- --files "$@"
 fi
 # pre-commit returns 1 when a formatter changes files. Run once more to
 # distinguish successful formatting from a remaining error.
 if [ "$stage" = manual ]; then
-  if uv tool run --python 3.14.10 --from pre-commit==4.7.0 pre-commit run --hook-stage "$stage" --show-diff-on-failure "$@"; then
-    exit 0
-  else
-    result=$?
-    [ "$result" -eq 1 ] || exit "$result"
-  fi
+    if uv tool run --python 3.14.10 --from pre-commit==4.7.0 pre-commit run --hook-stage "$stage" --show-diff-on-failure "$@"; then
+        exit 0
+    else
+        result=$?
+        [ "$result" -eq 1 ] || exit "$result"
+    fi
 fi
 exec uv tool run --python 3.14.10 --from pre-commit==4.7.0 pre-commit run --hook-stage "$stage" --show-diff-on-failure "$@"

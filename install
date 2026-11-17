@@ -12,13 +12,13 @@ set -euo pipefail
 # fill, never disk selection, erase confirmation, partitioning or formatting.
 skip_random_fill=false
 for argument in "$@"; do
-  case "$argument" in
-    --skip-random-fill) skip_random_fill=true ;;
-    *)
-      echo "Unknown argument: $argument" >&2
-      exit 2
-      ;;
-  esac
+    case "$argument" in
+        --skip-random-fill) skip_random_fill=true ;;
+        *)
+            echo "Unknown argument: $argument" >&2
+            exit 2
+            ;;
+    esac
 done
 
 cd "$(dirname "$0")"
@@ -32,97 +32,97 @@ exec 2> >(tee "stderr.log" >&2)
 BACKTITLE="ArchLinux Hardened Installation"
 
 on_error() {
-  ret=$?
-  echo "[$0] Error on line $LINENO: $BASH_COMMAND"
-  exit $ret
+    ret=$?
+    echo "[$0] Error on line $LINENO: $BASH_COMMAND"
+    exit $ret
 }
 
 get_input() {
-  title="$1"
-  description="$2"
+    title="$1"
+    description="$2"
 
-  input=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --inputbox "$description" 0 0)
-  echo "$input"
+    input=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --inputbox "$description" 0 0)
+    echo "$input"
 }
 
 get_password() {
-  title="$1"
-  description="$2"
+    title="$1"
+    description="$2"
 
-  init_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description" 0 0)
-  test -z "$init_pass" && echo >&2 "password cannot be empty" && exit 1
+    init_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description" 0 0)
+    test -z "$init_pass" && echo >&2 "password cannot be empty" && exit 1
 
-  test_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description again" 0 0)
-  if [[ "$init_pass" != "$test_pass" ]]; then
-    echo "Passwords did not match" >&2
-    exit 1
-  fi
-  echo "$init_pass"
+    test_pass=$(dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --passwordbox "$description again" 0 0)
+    if [[ "$init_pass" != "$test_pass" ]]; then
+        echo "Passwords did not match" >&2
+        exit 1
+    fi
+    echo "$init_pass"
 }
 
 get_choice() {
-  title="$1"
-  description="$2"
-  shift 2
-  options=("$@")
-  dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --menu "$description" 0 0 0 "${options[@]}"
+    title="$1"
+    description="$2"
+    shift 2
+    options=("$@")
+    dialog --clear --stdout --backtitle "$BACKTITLE" --title "$title" --menu "$description" 0 0 0 "${options[@]}"
 }
 
 random_fill() {
-  local target=$1 debug_skip=$2
-  local size major_minor sequence boot_id identity canary temporary choice
-  local state_dir=/run/archlinux-hardened/random-fill
+    local target=$1 debug_skip=$2
+    local size major_minor sequence boot_id identity canary temporary choice
+    local state_dir=/run/archlinux-hardened/random-fill
 
-  if [[ "$debug_skip" == true ]]; then
-    echo '[installer] DEBUG: skipping random fill without recording completion.' >&2
-    return
-  fi
-
-  size=$(blockdev --getsize64 "$target")
-  [[ "$size" =~ ^[1-9][0-9]*$ ]] || return 1
-  major_minor=$(lsblk -dnro MAJ:MIN "$target")
-  sequence=$(cat "/sys/dev/block/$major_minor/diskseq")
-  boot_id=$(cat /proc/sys/kernel/random/boot_id)
-  # diskseq changes when a device is replaced, even if its /dev name is reused.
-  # The boot ID and size also invalidate records from another boot or disk size.
-  identity=$(printf '%s\n%s\n%s\n' "$boot_id" "$sequence" "$size")
-  (umask 077 && mkdir -p "$state_dir")
-  canary="$state_dir/${major_minor/:/_}.complete"
-
-  if [[ -f "$canary" && "$(cat "$canary")" == "$identity" ]]; then
-    choice=$(get_choice "Random fill already completed" \
-      "$target was fully filled during this live session. Partitioning and formatting will still erase the selected disk." \
-      "Fill" "Fill the disk again" "Skip" "Reuse the completed random fill") || return 1
-    if [[ "$choice" == Skip ]]; then
-      echo "Reusing the completed random fill for $target"
-      return
+    if [[ "$debug_skip" == true ]]; then
+        echo '[installer] DEBUG: skipping random fill without recording completion.' >&2
+        return
     fi
-    [[ "$choice" == Fill ]] || return 1
-  fi
 
-  # Invalidate an earlier completion before starting another write attempt.
-  rm -f -- "$canary"
-  echo "Writing random bytes to $target, go grab some coffee it might take a while"
-  if ! dd bs=1M if=/dev/urandom of="$target" iflag=fullblock,count_bytes \
-    count="$size" conv=fsync status=progress; then
-    echo '[installer] Random fill failed; no completion recorded. Stopping before partitioning.' >&2
-    return 1
-  fi
-  if [[ "$(blockdev --getsize64 "$target")" != "$size" ||
-  "$(cat "/sys/dev/block/$major_minor/diskseq")" != "$sequence" ]]; then
-    echo '[installer] Disk identity or size changed during the fill; stopping.' >&2
-    return 1
-  fi
+    size=$(blockdev --getsize64 "$target")
+    [[ "$size" =~ ^[1-9][0-9]*$ ]] || return 1
+    major_minor=$(lsblk -dnro MAJ:MIN "$target")
+    sequence=$(cat "/sys/dev/block/$major_minor/diskseq")
+    boot_id=$(cat /proc/sys/kernel/random/boot_id)
+    # diskseq changes when a device is replaced, even if its /dev name is reused.
+    # The boot ID and size also invalidate records from another boot or disk size.
+    identity=$(printf '%s\n%s\n%s\n' "$boot_id" "$sequence" "$size")
+    (umask 077 && mkdir -p "$state_dir")
+    canary="$state_dir/${major_minor/:/_}.complete"
 
-  # Publish only after dd has written the exact byte count and flushed the disk.
-  temporary=$(mktemp "$state_dir/.complete.XXXXXX")
-  printf '%s\n' "$identity" >"$temporary"
-  mv -f -- "$temporary" "$canary"
+    if [[ -f "$canary" && "$(cat "$canary")" == "$identity" ]]; then
+        choice=$(get_choice "Random fill already completed" \
+            "$target was fully filled during this live session. Partitioning and formatting will still erase the selected disk." \
+            "Fill" "Fill the disk again" "Skip" "Reuse the completed random fill") || return 1
+        if [[ "$choice" == Skip ]]; then
+            echo "Reusing the completed random fill for $target"
+            return
+        fi
+        [[ "$choice" == Fill ]] || return 1
+    fi
+
+    # Invalidate an earlier completion before starting another write attempt.
+    rm -f -- "$canary"
+    echo "Writing random bytes to $target, go grab some coffee it might take a while"
+    if ! dd bs=1M if=/dev/urandom of="$target" iflag=fullblock,count_bytes \
+        count="$size" conv=fsync status=progress; then
+        echo '[installer] Random fill failed; no completion recorded. Stopping before partitioning.' >&2
+        return 1
+    fi
+    if [[ "$(blockdev --getsize64 "$target")" != "$size" ||
+    "$(cat "/sys/dev/block/$major_minor/diskseq")" != "$sequence" ]]; then
+        echo '[installer] Disk identity or size changed during the fill; stopping.' >&2
+        return 1
+    fi
+
+    # Publish only after dd has written the exact byte count and flushed the disk.
+    temporary=$(mktemp "$state_dir/.complete.XXXXXX")
+    printf '%s\n' "$identity" >"$temporary"
+    mv -f -- "$temporary" "$canary"
 }
 
 if [ ! -d /sys/firmware/efi ]; then
-  echo >&2 "legacy BIOS boot detected, this install script only works with UEFI."
-  exit 1
+    echo >&2 "legacy BIOS boot detected, this install script only works with UEFI."
+    exit 1
 fi
 
 # Unmount previously mounted devices in case the install script is run multiple times
@@ -132,14 +132,14 @@ cryptsetup luksClose archlinux 2>/dev/null || true
 
 # Give NTP a chance to correct an old RTC before HTTPS and signature checks.
 if timedatectl set-ntp true &&
-  timeout --foreground --kill-after=5s 10s /usr/lib/systemd/systemd-time-wait-sync; then
-  if ! hwclock --systohc --utc; then
-    echo '[installer] Time synchronized, but writing the hardware clock failed; continuing.' >&2
-  fi
+    timeout --foreground --kill-after=5s 10s /usr/lib/systemd/systemd-time-wait-sync; then
+    if ! hwclock --systohc --utc; then
+        echo '[installer] Time synchronized, but writing the hardware clock failed; continuing.' >&2
+    fi
 else
-  echo '[installer] Time synchronization was not confirmed; continuing with the current clock.' >&2
-  date --utc >&2
-  echo '[installer] If downloads fail certificate or signature checks, check the clock with timedatectl.' >&2
+    echo '[installer] Time synchronization was not confirmed; continuing with the current clock.' >&2
+    date --utc >&2
+    echo '[installer] If downloads fail certificate or signature checks, check the clock with timedatectl.' >&2
 fi
 
 # Keyring from ISO might be outdated, upgrading it just in case
@@ -208,8 +208,8 @@ sgdisk --change-name=1:primary --change-name=2:ESP "${device}"
 
 # shellcheck disable=SC2086,SC2010
 {
-  part_root="$(ls ${device}* | grep -E "^${device}p?1$")"
-  part_boot="$(ls ${device}* | grep -E "^${device}p?2$")"
+    part_root="$(ls ${device}* | grep -E "^${device}p?1$")"
+    part_boot="$(ls ${device}* | grep -E "^${device}p?2$")"
 }
 
 mkfs.vfat -n "EFI" -F 32 "${part_boot}"
@@ -275,49 +275,49 @@ swapon /mnt/.swap/swapfile # we use the swap so that genfstab detects it
 grep -o '^[^ *#]*' packages/regular >regular_packages_to_install
 
 if [[ "$gpu_target" != "None" || "$install_igpu_drivers" = "Yes" ]]; then
-  {
-    # Open-source OpenGL drivers
-    echo mesa
+    {
+        # Open-source OpenGL drivers
+        echo mesa
 
-    # Vulkan Installable Client Driver
-    echo vulkan-icd-loader
+        # Vulkan Installable Client Driver
+        echo vulkan-icd-loader
 
-    # GPU inference backend for llama.cpp (CPU support comes with ggml).
-    echo ggml-vulkan
-  } >>regular_packages_to_install
+        # GPU inference backend for llama.cpp (CPU support comes with ggml).
+        echo ggml-vulkan
+    } >>regular_packages_to_install
 fi
 
 if [[ "$cpu_target" == "Intel" ]]; then
-  echo intel-ucode >>regular_packages_to_install
+    echo intel-ucode >>regular_packages_to_install
 
-  if [[ "$install_igpu_drivers" == "Yes" ]]; then
-    {
-      # HD Graphics series starting from Broadwell (2014) and newer
-      echo intel-media-driver
+    if [[ "$install_igpu_drivers" == "Yes" ]]; then
+        {
+            # HD Graphics series starting from Broadwell (2014) and newer
+            echo intel-media-driver
 
-      # GMA 4500 (2008) up to Coffee Lake (2017)
-      echo libva-intel-driver
+            # GMA 4500 (2008) up to Coffee Lake (2017)
+            echo libva-intel-driver
 
-      # Open-source Vulkan driver for Intel GPUs
-      echo vulkan-intel
-    } >>regular_packages_to_install
-  fi
+            # Open-source Vulkan driver for Intel GPUs
+            echo vulkan-intel
+        } >>regular_packages_to_install
+    fi
 elif [[ "$cpu_target" == "AMD" ]]; then
-  echo amd-ucode >>regular_packages_to_install
+    echo amd-ucode >>regular_packages_to_install
 else
-  echo "Unsupported CPU"
-  exit 1
+    echo "Unsupported CPU"
+    exit 1
 fi
 
 if [[ "$gpu_target" != "None" ]]; then
-  {
+    {
 
-    if [[ "$gpu_target" = "Nvidia" ]]; then
-      echo vulkan-nouveau
-    elif [[ "$gpu_target" = "AMD" ]]; then
-      echo vulkan-radeon
-    fi
-  } >>regular_packages_to_install
+        if [[ "$gpu_target" = "Nvidia" ]]; then
+            echo vulkan-nouveau
+        elif [[ "$gpu_target" = "AMD" ]]; then
+            echo vulkan-radeon
+        fi
+    } >>regular_packages_to_install
 fi
 
 pacstrap -K /mnt - <regular_packages_to_install
@@ -337,32 +337,32 @@ sed -i "s/username_placeholder/$user/g" /mnt/etc/libvirt/qemu.conf
 ln -sfT dash /mnt/usr/bin/sh
 
 {
-  # Customize Linux Security Modules to include AppArmor
-  echo -n "lsm=landlock,lockdown,yama,integrity,apparmor,bpf"
+    # Customize Linux Security Modules to include AppArmor
+    echo -n "lsm=landlock,lockdown,yama,integrity,apparmor,bpf"
 
-  # Put kernel in integrity lockdown mode
-  echo -n " lockdown=integrity"
+    # Put kernel in integrity lockdown mode
+    echo -n " lockdown=integrity"
 
-  # The LUKS device to decrypt
-  echo -n " cryptdevice=${part_root}:archlinux"
+    # The LUKS device to decrypt
+    echo -n " cryptdevice=${part_root}:archlinux"
 
-  # The decrypted device to mount as the root
-  echo -n " root=/dev/mapper/archlinux"
+    # The decrypted device to mount as the root
+    echo -n " root=/dev/mapper/archlinux"
 
-  # Mount the @ btrfs subvolume inside the decrypted device as the root
-  echo -n " rootflags=subvol=@"
+    # Mount the @ btrfs subvolume inside the decrypted device as the root
+    echo -n " rootflags=subvol=@"
 
-  # Allow suspend state (puts device into sleep but keeps powering the RAM for fast sleep mode recovery)
-  echo -n " mem_sleep_default=deep"
+    # Allow suspend state (puts device into sleep but keeps powering the RAM for fast sleep mode recovery)
+    echo -n " mem_sleep_default=deep"
 
-  # Ensure that all processes that run before the audit daemon starts are marked as auditable by the kernel
-  echo -n " audit=1"
+    # Ensure that all processes that run before the audit daemon starts are marked as auditable by the kernel
+    echo -n " audit=1"
 
-  # Increase default log size
-  echo -n " audit_backlog_limit=32768"
+    # Increase default log size
+    echo -n " audit_backlog_limit=32768"
 
-  # Completely quiet the boot process to display some eye candy using plymouth instead :)
-  echo -n " quiet splash rd.udev.log_level=3"
+    # Completely quiet the boot process to display some eye candy using plymouth instead :)
+    echo -n " quiet splash rd.udev.log_level=3"
 } >/mnt/etc/kernel/cmdline
 
 echo "FONT=$font" >/mnt/etc/vconsole.conf
@@ -384,8 +384,8 @@ touch /mnt/etc/hushlogins
 # Creating user
 arch-chroot /mnt useradd -m -s /bin/sh "$user" # keep a real POSIX shell as default, not zsh, that will come later
 for group in wheel audit libvirt firejail; do
-  arch-chroot /mnt groupadd -rf "$group"
-  arch-chroot /mnt gpasswd -a "$user" "$group"
+    arch-chroot /mnt groupadd -rf "$group"
+    arch-chroot /mnt gpasswd -a "$user" "$group"
 done
 echo "$user:$user_password" | arch-chroot /mnt chpasswd
 
@@ -418,7 +418,7 @@ arch-chroot -u "$user" /mnt /bin/bash -c 'mkdir /tmp/yay.$$ && \
 grep -o '^[^ *#]*' packages/aur >aur_packages_to_install
 
 if [[ "$gpu_target" = "Nvidia" ]]; then
-  echo nouveau-fw >>aur_packages_to_install
+    echo nouveau-fw >>aur_packages_to_install
 fi
 
 HOME="/home/$user" arch-chroot -u "$user" /mnt /usr/bin/yay --noconfirm -Sy - <aur_packages_to_install
@@ -438,13 +438,13 @@ sed -i '$ d' /mnt/etc/sudoers
 arch-chroot /mnt plymouth-set-default-theme colorful_loop
 
 if [[ "$gpu_target" = "AMD" ]]; then
-  modules="amdgpu"
+    modules="amdgpu"
 elif [[ "$gpu_target" = "Nvidia" ]]; then
-  modules="nouveau"
+    modules="nouveau"
 elif [[ "$cpu_target" = "Intel" && "$install_igpu_drivers" = "Yes" ]]; then
-  modules="i915"
+    modules="i915"
 else
-  modules=""
+    modules=""
 fi
 
 cat <<EOF >/mnt/etc/mkinitcpio.conf
@@ -459,9 +459,9 @@ arch-chroot /mnt mkinitcpio -p linux-hardened
 
 # Generate UEFI keys, sign kernels, enroll keys, etc.
 {
-  echo 'KERNEL=linux-hardened'
-  echo 'SUBVOLUME_ROOT=@'
-  echo 'SUBVOLUME_SNAPSHOT=@snapshots/%1/snapshot'
+    echo 'KERNEL=linux-hardened'
+    echo 'SUBVOLUME_ROOT=@'
+    echo 'SUBVOLUME_SNAPSHOT=@snapshots/%1/snapshot'
 } >/mnt/etc/arch-secure-boot/config
 arch-chroot /mnt arch-secure-boot initial-setup
 

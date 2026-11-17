@@ -2,43 +2,43 @@
 set -euo pipefail
 
 if ! mountpoint -q /run/archiso/bootmnt; then
-  echo '[installer] This launcher must run inside the Arch installation medium.' >&2
-  exit 1
+    echo '[installer] This launcher must run inside the Arch installation medium.' >&2
+    exit 1
 fi
 
 # A diskless, offline CI VM uses this channel to test the real boot entry.
 # Never clone or invoke the destructive installer during that test.
 smoke_port=/dev/virtio-ports/org.archlinux.hardened.smoke
 if [[ -w "$smoke_port" ]]; then
-  printf '%s\n' ARCHLINUX_HARDENED_LAUNCHER_READY >"$smoke_port"
-  exit 0
+    printf '%s\n' ARCHLINUX_HARDENED_LAUNCHER_READY >"$smoke_port"
+    exit 0
 fi
 
 trap 'echo "[installer] Startup failed. Check the error above, then retry: /run/archiso/bootmnt/hardened/start-install" >&2' ERR
 
 failure_reason() {
-  if grep -Eqi 'No space left on device|not enough free disk space|partition .* too full' "$1"; then
-    echo space
-  elif grep -Eqi 'unable to lock database|could not lock database' "$1"; then
-    echo lock
-  elif grep -Eqi 'Could not resolve|Could not connect|Failed to connect|Connection (timed out|refused|reset)|Network is unreachable|No route to host|Operation timed out|Timeout was reached|Resolving timed out|[Oo]peration too slow|TLS connection was non-properly terminated' "$1"; then
-    echo network
-  elif grep -Eqi 'SSL certificate|certificate verification|certificate.*(expired|not yet valid)|invalid or corrupted package.*(PGP|signature)|signature .*unknown trust|unknown public key|required key missing|key could not be looked up' "$1"; then
-    echo trust
-  elif grep -Eqi 'could not satisfy dependencies|unable to satisfy dependency|breaks dependency|error while loading shared libraries|symbol lookup error|version .* not found|required by.*not found|unrecognized archive format' "$1"; then
-    echo compatibility
-  elif grep -Eqi '(error|returned|response|HTTP).* (404|403|429|5[0-9][0-9])|requested URL returned error' "$1"; then
-    echo server
-  else
-    echo unknown
-  fi
+    if grep -Eqi 'No space left on device|not enough free disk space|partition .* too full' "$1"; then
+        echo space
+    elif grep -Eqi 'unable to lock database|could not lock database' "$1"; then
+        echo lock
+    elif grep -Eqi 'Could not resolve|Could not connect|Failed to connect|Connection (timed out|refused|reset)|Network is unreachable|No route to host|Operation timed out|Timeout was reached|Resolving timed out|[Oo]peration too slow|TLS connection was non-properly terminated' "$1"; then
+        echo network
+    elif grep -Eqi 'SSL certificate|certificate verification|certificate.*(expired|not yet valid)|invalid or corrupted package.*(PGP|signature)|signature .*unknown trust|unknown public key|required key missing|key could not be looked up' "$1"; then
+        echo trust
+    elif grep -Eqi 'could not satisfy dependencies|unable to satisfy dependency|breaks dependency|error while loading shared libraries|symbol lookup error|version .* not found|required by.*not found|unrecognized archive format' "$1"; then
+        echo compatibility
+    elif grep -Eqi '(error|returned|response|HTTP).* (404|403|429|5[0-9][0-9])|requested URL returned error' "$1"; then
+        echo server
+    else
+        echo unknown
+    fi
 }
 
 recovery_shell() {
-  echo '[installer] Could not prepare the installer. Check the error above.' >&2
-  case "$(failure_reason "$1")" in
-    network)
-      cat >&2 <<'EOF'
+    echo '[installer] Could not prepare the installer. Check the error above.' >&2
+    case "$(failure_reason "$1")" in
+        network)
+            cat >&2 <<'EOF'
 [installer] A network connection failed. Check your connection and retry.
 
 For Ethernet, plug in the cable; DHCP is configured by the live ISO.
@@ -56,33 +56,33 @@ To diagnose the connection:
   resolvectl status
   curl --fail --location --max-time 15 https://github.com/ -o /dev/null
 EOF
-      ;;
-    compatibility)
-      echo '[installer] Package/library incompatibility detected. The live ISO may be outdated.' >&2
-      echo 'Boot the latest ISO and retry. Do not force dependencies or upgrade the entire live system to work around this.' >&2
-      ;;
-    trust)
-      echo '[installer] Certificate or package signature verification failed.' >&2
-      echo 'Check the clock with timedatectl first. If it is correct, try the latest ISO; its certificates/keyring may be newer. Do not disable verification.' >&2
-      ;;
-    server)
-      echo '[installer] A download server returned an HTTP error. This alone does not mean the ISO is outdated.' >&2
-      echo 'Check the failing URL above. For Arch mirror errors, check /etc/pacman.d/mirrorlist or retry later. For GitHub errors, check service availability or network filtering.' >&2
-      ;;
-    space)
-      echo '[installer] The filesystem used by the failed operation is full.' >&2
-      echo 'Check df -h / /run/archiso/cowspace /tmp and free -h. The live filesystem uses RAM; a larger installation disk will not increase its space.' >&2
-      ;;
-    lock)
-      echo '[installer] The package database is locked. Wait for any other package operation to finish before retrying.' >&2
-      ;;
-    *)
-      echo '[installer] Could not determine whether this is a network or ISO problem.' >&2
-      echo 'Inspect the error above before retrying. Check connectivity and the clock; if the error reports incompatible libraries, boot the latest ISO.' >&2
-      ;;
-  esac
-  printf '[installer] Command output is available in %s during this session.\n' "$1" >&2
-  cat >&2 <<'EOF'
+            ;;
+        compatibility)
+            echo '[installer] Package/library incompatibility detected. The live ISO may be outdated.' >&2
+            echo 'Boot the latest ISO and retry. Do not force dependencies or upgrade the entire live system to work around this.' >&2
+            ;;
+        trust)
+            echo '[installer] Certificate or package signature verification failed.' >&2
+            echo 'Check the clock with timedatectl first. If it is correct, try the latest ISO; its certificates/keyring may be newer. Do not disable verification.' >&2
+            ;;
+        server)
+            echo '[installer] A download server returned an HTTP error. This alone does not mean the ISO is outdated.' >&2
+            echo 'Check the failing URL above. For Arch mirror errors, check /etc/pacman.d/mirrorlist or retry later. For GitHub errors, check service availability or network filtering.' >&2
+            ;;
+        space)
+            echo '[installer] The filesystem used by the failed operation is full.' >&2
+            echo 'Check df -h / /run/archiso/cowspace /tmp and free -h. The live filesystem uses RAM; a larger installation disk will not increase its space.' >&2
+            ;;
+        lock)
+            echo '[installer] The package database is locked. Wait for any other package operation to finish before retrying.' >&2
+            ;;
+        *)
+            echo '[installer] Could not determine whether this is a network or ISO problem.' >&2
+            echo 'Inspect the error above before retrying. Check connectivity and the clock; if the error reports incompatible libraries, boot the latest ISO.' >&2
+            ;;
+    esac
+    printf '[installer] Command output is available in %s during this session.\n' "$1" >&2
+    cat >&2 <<'EOF'
 
 Opening a recovery shell.
 Exit iwctl first if you used it, then type exit (or press Ctrl-D) in this shell to RETRY.
@@ -91,19 +91,19 @@ To stop the launcher, exit this shell and press Ctrl-C during the retry.
 From the normal live shell, you can start again with:
   /run/archiso/bootmnt/hardened/start-install
 EOF
-  # Avoid login startup files, which could invoke the ISO launcher again.
-  bash --noprofile --norc -i || true
+    # Avoid login startup files, which could invoke the ISO launcher again.
+    bash --noprofile --norc -i || true
 }
 
 # A degraded live session may still be usable. Wait for initialization,
 # including pacman-init, rather than racing the package manager at login.
 state=$(systemctl is-system-running --wait) || true
 case "$state" in
-  running | degraded) ;;
-  *)
-    echo "[installer] Live environment is not ready: $state" >&2
-    exit 1
-    ;;
+    running | degraded) ;;
+    *)
+        echo "[installer] Live environment is not ready: $state" >&2
+        exit 1
+        ;;
 esac
 systemctl start network-online.target
 
@@ -111,42 +111,42 @@ failure_log=$(mktemp /tmp/hardened-installer.XXXXXX)
 trap 'rm -f -- "$failure_log"' EXIT
 
 while true; do
-  # Give NTP a chance to correct an old RTC before HTTPS and signature checks.
-  if timedatectl set-ntp true &&
-    timeout --foreground --kill-after=5s 10s /usr/lib/systemd/systemd-time-wait-sync; then
-    if ! hwclock --systohc --utc; then
-      echo '[installer] Time synchronized, but writing the hardware clock failed; continuing.' >&2
+    # Give NTP a chance to correct an old RTC before HTTPS and signature checks.
+    if timedatectl set-ntp true &&
+        timeout --foreground --kill-after=5s 10s /usr/lib/systemd/systemd-time-wait-sync; then
+        if ! hwclock --systohc --utc; then
+            echo '[installer] Time synchronized, but writing the hardware clock failed; continuing.' >&2
+        fi
+    else
+        echo '[installer] Time synchronization was not confirmed; continuing with the current clock.' >&2
+        date --utc >&2
+        echo '[installer] If downloads fail certificate or signature checks, check the clock with timedatectl.' >&2
     fi
-  else
-    echo '[installer] Time synchronization was not confirmed; continuing with the current clock.' >&2
-    date --utc >&2
-    echo '[installer] If downloads fail certificate or signature checks, check the clock with timedatectl.' >&2
-  fi
 
-  # Refresh trust before checking signatures on Git and its dependencies.
-  if ! LC_ALL=C pacman -Sy --needed --noconfirm archlinux-keyring 2>&1 | tee "$failure_log"; then
+    # Refresh trust before checking signatures on Git and its dependencies.
+    if ! LC_ALL=C pacman -Sy --needed --noconfirm archlinux-keyring 2>&1 | tee "$failure_log"; then
+        recovery_shell "$failure_log"
+        continue
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        # The real package download checks mirror connectivity as well as installing Git.
+        # Accept the compatibility tradeoff only in this disposable live environment.
+        # Do not upgrade the entire ISO into its RAM-backed writable filesystem.
+        if ! LC_ALL=C pacman -S --needed --noconfirm git 2>&1 | tee "$failure_log"; then
+            recovery_shell "$failure_log"
+            continue
+        fi
+    fi
+
+    # Check GitHub access even when Git was already installed. A failed clone gets
+    # a fresh destination on retry, so partial downloads cannot block recovery.
+    checkout=$(mktemp -d /root/hardened-install.XXXXXX)
+    if LC_ALL=C timeout --foreground --kill-after=5s 120s git clone --depth 1 \
+        https://github.com/ShellCode33/ArchLinux-Hardened.git "$checkout/repo" 2>&1 | tee "$failure_log"; then
+        break
+    fi
     recovery_shell "$failure_log"
-    continue
-  fi
-
-  if ! command -v git >/dev/null 2>&1; then
-    # The real package download checks mirror connectivity as well as installing Git.
-    # Accept the compatibility tradeoff only in this disposable live environment.
-    # Do not upgrade the entire ISO into its RAM-backed writable filesystem.
-    if ! LC_ALL=C pacman -S --needed --noconfirm git 2>&1 | tee "$failure_log"; then
-      recovery_shell "$failure_log"
-      continue
-    fi
-  fi
-
-  # Check GitHub access even when Git was already installed. A failed clone gets
-  # a fresh destination on retry, so partial downloads cannot block recovery.
-  checkout=$(mktemp -d /root/hardened-install.XXXXXX)
-  if LC_ALL=C timeout --foreground --kill-after=5s 120s git clone --depth 1 \
-    https://github.com/ShellCode33/ArchLinux-Hardened.git "$checkout/repo" 2>&1 | tee "$failure_log"; then
-    break
-  fi
-  recovery_shell "$failure_log"
 done
 rm -f -- "$failure_log"
 exec "$checkout/repo/install"

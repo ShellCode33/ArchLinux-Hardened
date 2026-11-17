@@ -1,257 +1,257 @@
 minimum_pre_commit_version: 4.7.0
 default_language_version:
-  python: python3
-  node: 24.11.1
+    python: python3
+    node: 24.11.1
 default_stages:
-  - pre-commit
+    - pre-commit
 repos:
-  - repo: local
-    hooks:
-      - id: ruff
-        name: ruff
-        entry: ruff check --config .ruff.toml
-        language: python
-        additional_dependencies:
-          - ruff==0.17.5
-        types_or:
-          - python
-          - pyi
-        stages:
-          - pre-commit
-        require_serial: true
-      - id: ruff-format-check
-        name: ruff-format-check
-        entry: ruff format --config .ruff.toml --check
-        language: python
-        additional_dependencies:
-          - ruff==0.17.5
-        types_or:
-          - python
-          - pyi
-        stages:
-          - pre-commit
-        require_serial: true
-      - id: ruff-fix
-        name: ruff-fix
-        entry: ruff check --config .ruff.toml --fix
-        language: python
-        additional_dependencies:
-          - ruff==0.17.5
-        types_or:
-          - python
-          - pyi
-        stages:
-          - manual
-        require_serial: true
-      - id: ruff-format
-        name: ruff-format
-        entry: ruff format --config .ruff.toml
-        language: python
-        additional_dependencies:
-          - ruff==0.17.5
-        types_or:
-          - python
-          - pyi
-        stages:
-          - manual
-        require_serial: true
-      - id: shellcheck
-        name: ShellCheck
-        entry: shellcheck --external-sources
-        language: python
-        additional_dependencies:
-          - shellcheck-py==0.11.0.1
-        types:
-          - shell
-        exclude: (^|/)\.zshrc$
-        require_serial: true
-      - id: shellcheck-config
-        name: ShellCheck sourced configuration
-        entry: shellcheck --shell=sh --exclude=SC2034
-        language: python
-        additional_dependencies:
-          - shellcheck-py==0.11.0.1
-        types:
-          - text
-        files: ^rootfs/etc/(conf\.d/snapper|snapper/configs/(home|root))$
-        require_serial: true
-      - id: shfmt-pre-commit
-        name: shfmt (pre-commit)
-        entry: shfmt -d -i 2 -ci
-        language: python
-        additional_dependencies:
-          - shfmt-py==4.2.0
-        types:
-          - shell
-        exclude: (^|/)\.zshrc$
-        stages:
-          - pre-commit
-        require_serial: true
-      - id: shfmt-config-pre-commit
-        name: shfmt sourced configuration (pre-commit)
-        entry: shfmt -d -i 2 -ci -ln posix
-        language: python
-        additional_dependencies:
-          - shfmt-py==4.2.0
-        types:
-          - text
-        files: ^rootfs/etc/(conf\.d/snapper|snapper/configs/(home|root))$
-        stages:
-          - pre-commit
-        require_serial: true
-      - id: prettier-pre-commit
-        name: Prettier (pre-commit)
-        entry: prettier --check
-        language: node
-        additional_dependencies:
-          - prettier@3.10.1
-          - "@prettier/plugin-xml@3.4.2"
-        stages:
-          - pre-commit
-        types:
-          - text
-        files: \.(jsonc?|ya?ml|md|js|css)$
-        require_serial: true
-      - id: taplo-pre-commit
-        name: Taplo (pre-commit)
-        entry: taplo format --check
-        language: python
-        additional_dependencies:
-          - taplo==0.9.3
-        types:
-          - text
-        files: (\.toml$|^rootfs/etc/containers/(storage\.conf|registries\.conf\.d/10-unqualified-search-registries\.conf))$
-        stages:
-          - pre-commit
-        require_serial: true
-      - id: shfmt-manual
-        name: shfmt (manual)
-        entry: shfmt -w -i 2 -ci
-        language: python
-        additional_dependencies:
-          - shfmt-py==4.2.0
-        types:
-          - shell
-        exclude: (^|/)\.zshrc$
-        stages:
-          - manual
-        require_serial: true
-      - id: shfmt-config-manual
-        name: shfmt sourced configuration (manual)
-        entry: shfmt -w -i 2 -ci -ln posix
-        language: python
-        additional_dependencies:
-          - shfmt-py==4.2.0
-        types:
-          - text
-        files: ^rootfs/etc/(conf\.d/snapper|snapper/configs/(home|root))$
-        stages:
-          - manual
-        require_serial: true
-      - id: prettier-manual
-        name: Prettier (manual)
-        entry: prettier --write
-        language: node
-        additional_dependencies:
-          - prettier@3.10.1
-          - "@prettier/plugin-xml@3.4.2"
-        stages:
-          - manual
-        types:
-          - text
-        files: \.(jsonc?|ya?ml|md|js|css)$
-        require_serial: true
-      - id: taplo-manual
-        name: Taplo (manual)
-        entry: taplo format
-        language: python
-        additional_dependencies:
-          - taplo==0.9.3
-        types:
-          - text
-        files: (\.toml$|^rootfs/etc/containers/(storage\.conf|registries\.conf\.d/10-unqualified-search-registries\.conf))$
-        stages:
-          - manual
-        require_serial: true
-      - id: actionlint
-        name: GitHub Actions
-        entry: actionlint -shellcheck= -pyflakes=
-        language: python
-        additional_dependencies:
-          - actionlint-py==1.7.12.25
-        files: ^\.github/workflows/[^/]+\.ya?ml$
-        require_serial: true
-      - id: editorconfig
-        name: Whitespace and line endings
-        entry: ec
-        language: python
-        additional_dependencies:
-          - editorconfig-checker==3.11.1
-        types:
-          - text
-        require_serial: true
-      - id: merge-conflict
-        name: Merge conflict markers
-        entry: check-merge-conflict
-        language: python
-        additional_dependencies:
-          - pre-commit-hooks==6.0.0
-        types:
-          - text
-        require_serial: true
-      - id: trailing-whitespace
-        name: Trim trailing whitespace
-        entry: trailing-whitespace-fixer --markdown-linebreak-ext=md
-        language: python
-        additional_dependencies:
-          - pre-commit-hooks==6.0.0
-        types:
-          - text
-        stages:
-          - manual
-        require_serial: true
-      - id: end-of-file
-        name: Final newline
-        entry: end-of-file-fixer
-        language: python
-        additional_dependencies:
-          - pre-commit-hooks==6.0.0
-        types:
-          - text
-        stages:
-          - manual
-        require_serial: true
-      - id: shellcheck-bashrc
-        name: ShellCheck Bash configuration
-        entry: shellcheck --shell=bash
-        language: python
-        additional_dependencies:
-          - shellcheck-py==0.11.0.1
-        types:
-          - text
-        files: ^rootfs/etc/bash\.bashrc$
-        require_serial: true
-      - id: shfmt-bashrc-pre-commit
-        name: shfmt Bash configuration (pre-commit)
-        entry: shfmt -d -i 2 -ci -ln bash
-        language: python
-        additional_dependencies:
-          - shfmt-py==4.2.0
-        types:
-          - text
-        files: ^rootfs/etc/bash\.bashrc$
-        stages:
-          - pre-commit
-        require_serial: true
-      - id: shfmt-bashrc-manual
-        name: shfmt Bash configuration (manual)
-        entry: shfmt -w -i 2 -ci -ln bash
-        language: python
-        additional_dependencies:
-          - shfmt-py==4.2.0
-        types:
-          - text
-        files: ^rootfs/etc/bash\.bashrc$
-        stages:
-          - manual
-        require_serial: true
+    - repo: local
+      hooks:
+          - id: ruff
+            name: ruff
+            entry: ruff check --config .ruff.toml
+            language: python
+            additional_dependencies:
+                - ruff==0.17.5
+            types_or:
+                - python
+                - pyi
+            stages:
+                - pre-commit
+            require_serial: true
+          - id: ruff-format-check
+            name: ruff-format-check
+            entry: ruff format --config .ruff.toml --check
+            language: python
+            additional_dependencies:
+                - ruff==0.17.5
+            types_or:
+                - python
+                - pyi
+            stages:
+                - pre-commit
+            require_serial: true
+          - id: ruff-fix
+            name: ruff-fix
+            entry: ruff check --config .ruff.toml --fix
+            language: python
+            additional_dependencies:
+                - ruff==0.17.5
+            types_or:
+                - python
+                - pyi
+            stages:
+                - manual
+            require_serial: true
+          - id: ruff-format
+            name: ruff-format
+            entry: ruff format --config .ruff.toml
+            language: python
+            additional_dependencies:
+                - ruff==0.17.5
+            types_or:
+                - python
+                - pyi
+            stages:
+                - manual
+            require_serial: true
+          - id: shellcheck
+            name: ShellCheck
+            entry: shellcheck --external-sources
+            language: python
+            additional_dependencies:
+                - shellcheck-py==0.11.0.1
+            types:
+                - shell
+            exclude: (^|/)\.zshrc$
+            require_serial: true
+          - id: shellcheck-config
+            name: ShellCheck sourced configuration
+            entry: shellcheck --shell=sh --exclude=SC2034
+            language: python
+            additional_dependencies:
+                - shellcheck-py==0.11.0.1
+            types:
+                - text
+            files: ^rootfs/etc/(conf\.d/snapper|snapper/configs/(home|root))$
+            require_serial: true
+          - id: shfmt-pre-commit
+            name: shfmt (pre-commit)
+            entry: shfmt -d -i 4 -ci
+            language: python
+            additional_dependencies:
+                - shfmt-py==4.2.0
+            types:
+                - shell
+            exclude: (^|/)\.zshrc$
+            stages:
+                - pre-commit
+            require_serial: true
+          - id: shfmt-config-pre-commit
+            name: shfmt sourced configuration (pre-commit)
+            entry: shfmt -d -i 4 -ci -ln posix
+            language: python
+            additional_dependencies:
+                - shfmt-py==4.2.0
+            types:
+                - text
+            files: ^rootfs/etc/(conf\.d/snapper|snapper/configs/(home|root))$
+            stages:
+                - pre-commit
+            require_serial: true
+          - id: prettier-pre-commit
+            name: Prettier (pre-commit)
+            entry: prettier --check
+            language: node
+            additional_dependencies:
+                - prettier@3.10.1
+                - "@prettier/plugin-xml@3.4.2"
+            stages:
+                - pre-commit
+            types:
+                - text
+            files: \.(jsonc?|ya?ml|md|js|css)$
+            require_serial: true
+          - id: taplo-pre-commit
+            name: Taplo (pre-commit)
+            entry: taplo format --check
+            language: python
+            additional_dependencies:
+                - taplo==0.9.3
+            types:
+                - text
+            files: (\.toml$|^rootfs/etc/containers/(storage\.conf|registries\.conf\.d/10-unqualified-search-registries\.conf))$
+            stages:
+                - pre-commit
+            require_serial: true
+          - id: shfmt-manual
+            name: shfmt (manual)
+            entry: shfmt -w -i 4 -ci
+            language: python
+            additional_dependencies:
+                - shfmt-py==4.2.0
+            types:
+                - shell
+            exclude: (^|/)\.zshrc$
+            stages:
+                - manual
+            require_serial: true
+          - id: shfmt-config-manual
+            name: shfmt sourced configuration (manual)
+            entry: shfmt -w -i 4 -ci -ln posix
+            language: python
+            additional_dependencies:
+                - shfmt-py==4.2.0
+            types:
+                - text
+            files: ^rootfs/etc/(conf\.d/snapper|snapper/configs/(home|root))$
+            stages:
+                - manual
+            require_serial: true
+          - id: prettier-manual
+            name: Prettier (manual)
+            entry: prettier --write
+            language: node
+            additional_dependencies:
+                - prettier@3.10.1
+                - "@prettier/plugin-xml@3.4.2"
+            stages:
+                - manual
+            types:
+                - text
+            files: \.(jsonc?|ya?ml|md|js|css)$
+            require_serial: true
+          - id: taplo-manual
+            name: Taplo (manual)
+            entry: taplo format
+            language: python
+            additional_dependencies:
+                - taplo==0.9.3
+            types:
+                - text
+            files: (\.toml$|^rootfs/etc/containers/(storage\.conf|registries\.conf\.d/10-unqualified-search-registries\.conf))$
+            stages:
+                - manual
+            require_serial: true
+          - id: actionlint
+            name: GitHub Actions
+            entry: actionlint -shellcheck= -pyflakes=
+            language: python
+            additional_dependencies:
+                - actionlint-py==1.7.12.25
+            files: ^\.github/workflows/[^/]+\.ya?ml$
+            require_serial: true
+          - id: editorconfig
+            name: Whitespace and line endings
+            entry: ec
+            language: python
+            additional_dependencies:
+                - editorconfig-checker==3.11.1
+            types:
+                - text
+            require_serial: true
+          - id: merge-conflict
+            name: Merge conflict markers
+            entry: check-merge-conflict
+            language: python
+            additional_dependencies:
+                - pre-commit-hooks==6.0.0
+            types:
+                - text
+            require_serial: true
+          - id: trailing-whitespace
+            name: Trim trailing whitespace
+            entry: trailing-whitespace-fixer --markdown-linebreak-ext=md
+            language: python
+            additional_dependencies:
+                - pre-commit-hooks==6.0.0
+            types:
+                - text
+            stages:
+                - manual
+            require_serial: true
+          - id: end-of-file
+            name: Final newline
+            entry: end-of-file-fixer
+            language: python
+            additional_dependencies:
+                - pre-commit-hooks==6.0.0
+            types:
+                - text
+            stages:
+                - manual
+            require_serial: true
+          - id: shellcheck-bashrc
+            name: ShellCheck Bash configuration
+            entry: shellcheck --shell=bash
+            language: python
+            additional_dependencies:
+                - shellcheck-py==0.11.0.1
+            types:
+                - text
+            files: ^rootfs/etc/bash\.bashrc$
+            require_serial: true
+          - id: shfmt-bashrc-pre-commit
+            name: shfmt Bash configuration (pre-commit)
+            entry: shfmt -d -i 4 -ci -ln bash
+            language: python
+            additional_dependencies:
+                - shfmt-py==4.2.0
+            types:
+                - text
+            files: ^rootfs/etc/bash\.bashrc$
+            stages:
+                - pre-commit
+            require_serial: true
+          - id: shfmt-bashrc-manual
+            name: shfmt Bash configuration (manual)
+            entry: shfmt -w -i 4 -ci -ln bash
+            language: python
+            additional_dependencies:
+                - shfmt-py==4.2.0
+            types:
+                - text
+            files: ^rootfs/etc/bash\.bashrc$
+            stages:
+                - manual
+            require_serial: true
