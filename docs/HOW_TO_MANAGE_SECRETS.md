@@ -64,7 +64,7 @@ When asked for a password, GPG will spawn a "pinentry" program. There are many o
 To make sure the pinentry program you use has support for libsecret, you can run the following command (replace `pinentry-curses` by the pinentry you're planning to use):
 
 ```
-$ ldd "$(command -v pinentry-curses)" | grep libsecret
+ldd "$(command -v pinentry-curses)" | grep libsecret
 ```
 
 If you see something like this in the ouput, then libsecret should be supported:
@@ -82,7 +82,7 @@ pinentry-program /usr/bin/pinentry-curses
 At this point everything is ready, you must kill any already running gpg-agent instance so that your config modifications are applied:
 
 ```
-$ killall gpg-agent
+killall gpg-agent
 ```
 
 There's one last thing to be aware of. Currently the pinentry of gpg-agent has no clue about what password entry to use in our KeePassXC database. We will now see how to link a GPG key to an entry in our KeePassXC database.
@@ -90,7 +90,7 @@ There's one last thing to be aware of. Currently the pinentry of gpg-agent has n
 Run the following command:
 
 ```
-$ gpg --list-secret-keys --with-keygrip
+gpg --list-secret-keys --with-keygrip
 ```
 
 If you have generated only one GPG keypair, your output should be similar to this:
@@ -128,11 +128,13 @@ And you're done ! The pinentry program won't ask for your password anymore, as l
 You can test this by running:
 
 ```
-$ killall gpg-agent
-$ echo test | gpg --armor --sign
+killall gpg-agent
+echo test | gpg --armor --sign
 ```
 
 I invite you to make sure it's working properly by trying to lock/unlock your KeePassXC database to make sure the behavior is as expected.
+
+Clone your existing GPG key entry in KeepassXC, and do the same for `n/ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ` so that you wont be prompted when trying to decrypt stuff.
 
 ## Automatically lock your database when you lock your computer
 
