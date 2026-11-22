@@ -507,6 +507,7 @@ arch-chroot /mnt systemctl enable fwupd-refresh.timer
 # Configure systemd user services
 arch-chroot /mnt systemctl --global enable dbus-broker
 arch-chroot /mnt systemctl --global enable journalctl-notify
+arch-chroot /mnt systemctl --global enable glider-monitor
 arch-chroot /mnt systemctl --global enable pipewire
 arch-chroot /mnt systemctl --global enable wireplumber
 arch-chroot /mnt systemctl --global enable gammastep

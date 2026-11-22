@@ -1,0 +1,388 @@
+#!/usr/bin/python3
+"""Watch Glider's journal and send aggregate proxy activity alerts."""
+
+import argparse
+import asyncio
+import fcntl
+import gzip
+import json
+import logging
+import os
+import re
+import sys
+import tempfile
+import time
+from collections import Counter
+from dataclasses import dataclass, field
+from http.client import HTTPException
+from pathlib import Path
+from typing import BinaryIO
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+UNIT = "local-forwarding-proxy.service"
+JOURNAL_COMMAND = (
+    "/usr/bin/journalctl",
+    "--namespace=glider",
+    "--boot",
+    "--no-pager",
+    "--output=json",
+    "--output-fields=MESSAGE,MESSAGE_ID,_SYSTEMD_UNIT",
+)
+WINDOW_SECONDS = 60
+NOTIFICATION_INTERVAL = 300
+CONNECTION_THRESHOLD = 600
+HOSTNAME_THRESHOLD = 100
+FAILURE_THRESHOLD = 20
+PORT_THRESHOLD = 5
+EXPECTED_PORTS = {22, 80, 443}
+JOURNAL_DROPPED = "a596d6fe7bfa4994828e72309e95d61e"
+TIF_URL = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif-onlydomains.txt"
+TIF_REFRESH_SECONDS = 8 * 60 * 60
+TIF_RETRY_SECONDS = 60 * 60
+TIF_MAX_BYTES = 128 * 1024 * 1024
+TIF_CACHE_HEADER = b"# glider-monitor HTTP validators: "
+TIF_COUNT_HEADER = b"# Number of entries: "
+TIF_VALIDATORS = {"ETag": "If-None-Match", "Last-Modified": "If-Modified-Since"}
+CONNECTION = re.compile(
+    r"\[http\] \S+ <-> (?P<target>\S+)(?: \[c\])? via [^,]*"
+    r"(?:, (?P<failure>error in dial|relay error): (?P<detail>.*))?"
+)
+HOSTNAME = re.compile(
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*"
+    r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?"
+)
+logger = logging.getLogger("glider-monitor")
+
+
+def tif_cache_path() -> Path:
+    base = Path(os.environ.get("XDG_CACHE_HOME") or "")
+    if not base.is_absolute():
+        base = Path.home() / ".cache"
+    return base / "glider-monitor" / "hagezi-tif.txt"
+
+
+def read_tif(source: BinaryIO, destination: BinaryIO | None = None) -> set[str]:
+    hostnames: set[str] = set()
+    announced_count = None
+    byte_count = 0
+    while line := source.readline(4097):
+        byte_count += len(line)
+        if len(line) > 4096 or byte_count > TIF_MAX_BYTES:
+            raise ValueError("HaGeZi TIF exceeds the allowed size")
+        if destination is not None:
+            destination.write(line)
+        value = line.strip()
+        if value.startswith(TIF_COUNT_HEADER):
+            announced_count = int(value.removeprefix(TIF_COUNT_HEADER))
+        if not value or value.startswith(b"#"):
+            continue
+        hostname = value.decode("ascii").rstrip(".").lower()
+        if len(hostname) > 253 or HOSTNAME.fullmatch(hostname) is None:
+            raise ValueError("HaGeZi TIF contains an invalid hostname")
+        hostnames.add(hostname)
+    if not hostnames or announced_count != len(hostnames):
+        raise ValueError("HaGeZi TIF entry count does not match its header")
+    return hostnames
+
+
+class ThreatFeed:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.hostnames: set[str] = set()
+        self.validators: dict[str, str] = {}
+        self.cache_version: tuple[int, int] | None = None
+
+    def load(self) -> None:
+        with self.path.open("rb") as source:
+            info = os.fstat(source.fileno())
+            version = (info.st_ino, info.st_mtime_ns)
+            if version == self.cache_version:
+                return
+            header = source.readline(4097)
+            if not header.startswith(TIF_CACHE_HEADER):
+                raise ValueError("HaGeZi TIF cache metadata is missing")
+            metadata = json.loads(header.removeprefix(TIF_CACHE_HEADER))
+            if not isinstance(metadata, dict):
+                raise ValueError("HaGeZi TIF cache metadata is invalid")
+            validators = {
+                name: value
+                for name in TIF_VALIDATORS
+                if isinstance(value := metadata.get(name), str) and value.isprintable()
+            }
+            self.hostnames = read_tif(source)
+            self.validators = validators
+            self.cache_version = version
+
+    def refresh(self) -> float:
+        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with (self.path.parent / ".hagezi-tif.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            conditional: dict[str, str] = {}
+            try:
+                self.load()
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError) as error:
+                logger.warning("Could not load the HaGeZi TIF cache (%s)", error)
+            else:
+                age = time.time() - self.path.stat().st_mtime
+                if 0 <= age < TIF_REFRESH_SECONDS:
+                    return TIF_REFRESH_SECONDS - age
+                conditional = {
+                    TIF_VALIDATORS[name]: value
+                    for name, value in self.validators.items()
+                }
+
+            request = Request(
+                TIF_URL,
+                headers={
+                    "Accept-Encoding": "gzip",
+                    "User-Agent": "glider-monitor/1.0",
+                    **conditional,
+                },
+            )
+            try:
+                response = urlopen(request, timeout=30)
+            except HTTPError as error:
+                error.close()
+                if error.code != 304 or not conditional:
+                    raise
+                os.utime(self.path, None)
+                info = self.path.stat()
+                self.cache_version = (info.st_ino, info.st_mtime_ns)
+                return TIF_REFRESH_SECONDS
+
+            with (
+                response,
+                tempfile.NamedTemporaryFile(
+                    dir=self.path.parent, delete_on_close=False
+                ) as snapshot,
+            ):
+                validators = {
+                    name: value
+                    for name in TIF_VALIDATORS
+                    if (value := response.headers.get(name))
+                }
+                snapshot.write(
+                    TIF_CACHE_HEADER + json.dumps(validators).encode() + b"\n"
+                )
+                if response.headers.get("Content-Encoding", "").lower() == "gzip":
+                    with gzip.GzipFile(fileobj=response) as decompressed:
+                        hostnames = read_tif(decompressed, snapshot)
+                else:
+                    hostnames = read_tif(response, snapshot)
+                snapshot.flush()
+                os.replace(snapshot.name, self.path)
+                info = self.path.stat()
+                self.cache_version = (info.st_ino, info.st_mtime_ns)
+                self.hostnames = hostnames
+                self.validators = validators
+        logger.info("Loaded %s hostnames from HaGeZi TIF", f"{len(hostnames):,}")
+        return TIF_REFRESH_SECONDS
+
+    async def follow(self) -> None:
+        while True:
+            try:
+                delay = await asyncio.to_thread(self.refresh)
+            except (OSError, ValueError, EOFError, HTTPException) as error:
+                logger.warning("Could not refresh HaGeZi TIF (%s)", error)
+                delay = TIF_RETRY_SECONDS
+            await asyncio.sleep(delay)
+
+
+def dial_error(detail: str) -> str:
+    detail = detail.lower()
+    if any(
+        marker in detail for marker in ("no such host", "lookup ", "server misbehaving")
+    ):
+        return "DNS"
+    if "timeout" in detail or "deadline exceeded" in detail:
+        return "timeout"
+    if "connection refused" in detail:
+        return "refused"
+    return "other dial"
+
+
+def parse_entry(line: bytes) -> dict[str, object] | None:
+    try:
+        entry: object = json.loads(line)
+    except (ValueError, RecursionError):
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
+def connection(entry: dict[str, object]) -> re.Match[str] | None:
+    message = entry.get("MESSAGE")
+    if entry.get("_SYSTEMD_UNIT") == UNIT and isinstance(message, str):
+        return CONNECTION.fullmatch(message)
+    return None
+
+
+def destination(target: str) -> tuple[str, int] | None:
+    hostname, separator, port = target.rpartition(":")
+    if not separator or not re.fullmatch(r"[0-9]{1,5}", port):
+        return None
+    port_number = int(port)
+    host = hostname.rstrip(".").lower()
+    if 1 <= port_number <= 65535 and 0 < len(host) <= 253:
+        return host, port_number
+    return None
+
+
+@dataclass
+class Activity:
+    attempts: int = 0
+    hostnames: set[str] = field(default_factory=set)
+    unusual_ports: int = 0
+    errors: Counter[str] = field(default_factory=Counter)
+    incomplete: bool = False
+
+    def record(
+        self, entry: dict[str, object], listed_hostnames: set[str]
+    ) -> str | None:
+        if entry.get("MESSAGE_ID") == JOURNAL_DROPPED:
+            self.incomplete = True
+        match = connection(entry)
+        if match is None:
+            return None
+        if match["failure"] == "relay error":
+            self.errors["relay"] += 1
+            return None  # The connection was already counted when it opened.
+        if match["failure"] == "error in dial":
+            self.errors[dial_error(match["detail"])] += 1
+        self.attempts += 1
+
+        target = destination(match["target"])
+        if target is None:
+            return None
+        host, port = target
+        if len(self.hostnames) < HOSTNAME_THRESHOLD and HOSTNAME.fullmatch(host):
+            self.hostnames.add(host)
+        if port not in EXPECTED_PORTS:
+            self.unusual_ports += 1
+        return host if host in listed_hostnames else None
+
+    def alerts(self) -> dict[str, str]:
+        alerts: dict[str, str] = {}
+        if self.attempts >= CONNECTION_THRESHOLD:
+            alerts["connections"] = f"{self.attempts} connection attempts"
+        if len(self.hostnames) >= HOSTNAME_THRESHOLD:
+            alerts["hostnames"] = (
+                f"At least {HOSTNAME_THRESHOLD} distinct destination hostnames"
+            )
+        if self.unusual_ports >= PORT_THRESHOLD:
+            alerts["ports"] = (
+                f"{self.unusual_ports} attempts to ports outside 22, 80, and 443"
+            )
+        if self.errors.total() >= FAILURE_THRESHOLD:
+            details = ", ".join(
+                f"{count} {category}" for category, count in self.errors.most_common()
+            )
+            alerts["errors"] = f"Proxy errors: {details}"
+        if self.incomplete:
+            alerts["journal"] = (
+                "Journal input was interrupted or reported dropped messages"
+            )
+        return alerts
+
+
+class Monitor:
+    def __init__(self, feed: ThreatFeed) -> None:
+        self.activity = Activity()
+        self.feed = feed
+
+    async def follow_journal(self) -> None:
+        while True:
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *JOURNAL_COMMAND,
+                    "--follow",
+                    "--lines=0",
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                try:
+                    assert process.stdout is not None
+                    async for line in process.stdout:
+                        entry = parse_entry(line)
+                        if entry is None:
+                            self.activity.incomplete = True
+                        else:
+                            hostname = self.activity.record(entry, self.feed.hostnames)
+                            if hostname is not None:
+                                # Deliver the name directly to the desktop session.
+                                await notify(
+                                    "/usr/bin/notify-send",
+                                    "--urgency=critical",
+                                    "--",
+                                    "MALICIOUS DOMAIN DETECTED",
+                                    f"Your computer tried to reach {hostname}",
+                                )
+                    await process.wait()
+                finally:
+                    if process.returncode is None:
+                        process.terminate()
+                    await process.wait()
+            except (OSError, ValueError):
+                pass
+            self.activity.incomplete = True
+            await asyncio.sleep(15)
+
+    async def report(self) -> None:
+        next_notification = 0.0
+        pending: dict[str, str] = {}
+        while True:
+            await asyncio.sleep(WINDOW_SECONDS)
+            pending.update(self.activity.alerts())
+            self.activity = Activity()
+            if pending and time.monotonic() >= next_notification:
+                next_notification = time.monotonic() + NOTIFICATION_INTERVAL
+                await notify(
+                    "/usr/local/bin/journal-notify",
+                    "Glider proxy activity",
+                    "Recent one-minute observations:\n" + "\n".join(pending.values()),
+                )
+                pending.clear()
+
+
+async def notify(*command: str) -> None:
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command, stderr=asyncio.subprocess.DEVNULL
+        )
+        try:
+            if await asyncio.wait_for(process.wait(), timeout=5):
+                logger.warning("Desktop notification request failed")
+        finally:
+            if process.returncode is None:
+                process.kill()
+                await process.wait()
+    except (OSError, TimeoutError):
+        logger.warning("Could not submit desktop notification request")
+
+
+async def watch() -> None:
+    feed = ThreatFeed(tif_cache_path())
+    monitor = Monitor(feed)
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(monitor.follow_journal())
+        tasks.create_task(monitor.report())
+        tasks.create_task(feed.follow())
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", nargs="?", choices=("watch",), default="watch")
+    parser.parse_args()
+    try:
+        asyncio.run(watch())
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="[%(name)s] %(levelname)s: %(message)s"
+    )
+    sys.exit(main())

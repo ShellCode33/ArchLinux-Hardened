@@ -1,0 +1,12 @@
+[Unit]
+Description=Monitor Glider proxy activity
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/local/bin/proxify /usr/local/bin/glider-monitor watch
+Restart=on-failure
+RestartSec=15s
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=graphical-session.target
