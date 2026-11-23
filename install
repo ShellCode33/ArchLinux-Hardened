@@ -227,6 +227,7 @@ btrfs subvolume create /mnt/@home-snapshots
 btrfs subvolume create /mnt/@libvirt
 btrfs subvolume create /mnt/@docker
 btrfs subvolume create /mnt/@podman
+btrfs subvolume create /mnt/@podman-rootful
 btrfs subvolume create /mnt/@cache-pacman-pkgs
 btrfs subvolume create /mnt/@var
 btrfs subvolume create /mnt/@var-log
@@ -258,8 +259,9 @@ chattr +C /mnt/var # Disable Copy-on-Write for /var
 mount --mkdir -o subvol=@var-log,$mount_opt /dev/mapper/archlinux /mnt/var/log
 mount --mkdir -o subvol=@libvirt,$mount_opt /dev/mapper/archlinux /mnt/var/lib/libvirt
 
-# Keep legacy Docker data outside root snapshots.
+# Keep Docker and rootful Podman storage in separate subvolumes for backups.
 mount --mkdir -o subvol=@docker,$mount_opt /dev/mapper/archlinux /mnt/var/lib/docker
+mount --mkdir -o subvol=@podman-rootful,$mount_opt /dev/mapper/archlinux /mnt/var/lib/containers
 
 # Not worth snapshotting, creating subvolumes for them so that they're not included
 # Be careful not to break a potential future rollback of /@ !!
