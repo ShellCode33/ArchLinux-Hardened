@@ -162,9 +162,6 @@ fd
 jq
 bat
 
-# Local LLM inference (models are configured manually)
-llama-cpp
-
 # Communication
 signal-desktop
 

@@ -283,9 +283,6 @@ if [[ "$gpu_target" != "None" || "$install_igpu_drivers" = "Yes" ]]; then
 
         # Vulkan Installable Client Driver
         echo vulkan-icd-loader
-
-        # GPU inference backend for llama.cpp (CPU support comes with ggml).
-        echo ggml-vulkan
     } >>regular_packages_to_install
 fi
 
@@ -519,7 +516,6 @@ arch-chroot /mnt systemctl --global enable waybar
 arch-chroot /mnt systemctl --global enable kanshi
 arch-chroot /mnt systemctl --global enable podman.socket
 arch-chroot /mnt systemctl --global enable podman-restart
-arch-chroot /mnt systemctl --global enable llama-server
 
 # Run userspace configuration
 HOME="/home/$user" arch-chroot -u "$user" /mnt /bin/bash -c 'cd && \
