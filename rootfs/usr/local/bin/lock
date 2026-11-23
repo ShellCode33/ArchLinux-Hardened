@@ -13,7 +13,7 @@ import sys
 from subprocess import run
 
 # Get your router mac address using "ip neighbor"
-HOME_NETWORK_MAC = "50:6f:0c:73:22:b0"  # CHANGEME
+HOME_NETWORK_MAC = "50:d2:f5:26:2c:4e"  # CHANGEME
 
 
 def lock_keepassxc() -> None:
