@@ -1,5 +1,7 @@
 [Unit]
 Description=Forward proxy using Glider
+# Start the network readiness target for proxy clients during boot.
+Wants=network-online.target
 After=network.target nftables.service
 
 [Service]
